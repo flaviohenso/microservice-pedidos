@@ -1,5 +1,6 @@
 package com.ecommerce.pedidos.presentation.controller;
 
+import com.ecommerce.pedidos.application.dto.ItemPedidoRequest;
 import com.ecommerce.pedidos.application.usecase.BuscarPedidoPorIdUseCase;
 import com.ecommerce.pedidos.application.usecase.CancelarPedidoUseCase;
 import com.ecommerce.pedidos.application.usecase.CriarPedidoUseCase;
@@ -59,13 +60,11 @@ public class PedidoController {
             @Valid @RequestBody PedidoRequestDTO request) {
         
         // Converte itens do DTO para o formato esperado pelo use case
-        var itensRequest = request.getItens().stream()
-                .map(item -> new CriarPedidoUseCase.ItemPedidoRequest(
-                        item.getProdutoId(), 
-                        item.getQuantidade()))
-                .collect(Collectors.toList());
+        var itensRequest = request.itens().stream()
+        .map(item -> new ItemPedidoRequest(item.produtoId(), item.quantidade())).collect(Collectors.toList());
         
-        Pedido pedido = criarPedidoUseCase.executar(request.getClienteId(), itensRequest);
+        
+        Pedido pedido = criarPedidoUseCase.executar(request.clienteId(), itensRequest);
         
         PedidoResponseDTO response = PedidoDTOMapper.toResponseDTO(pedido);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
