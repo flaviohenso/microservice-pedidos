@@ -1,5 +1,7 @@
 package com.ecommerce.pedidos.application.usecase;
 
+import com.ecommerce.pedidos.application.dto.ItemPedidoRequest;
+import com.ecommerce.pedidos.application.event.ItemPedidoEvent;
 import com.ecommerce.pedidos.application.event.PedidoCriadoEvent;
 import com.ecommerce.pedidos.application.service.ProdutoServicePort;
 import com.ecommerce.pedidos.domain.entity.ItemPedido;
@@ -79,23 +81,22 @@ public class CriarPedidoUseCase {
         
         for (ItemPedidoRequest itemRequest : itensRequest) {
             // Busca produto no microserviço de produtos
-            ProdutoDTO produto = produtoService.buscarProdutoPorId(itemRequest.getProdutoId())
-                    .orElseThrow(() -> new ProdutoIndisponivelException(
-                            itemRequest.getProdutoId(), "Produto não encontrado"));
+            ProdutoDTO produto = produtoService.buscarProdutoPorId(itemRequest.produtoId())
+            .orElseThrow(() -> new ProdutoIndisponivelException(itemRequest.produtoId(), "Produto não encontrado"));
             
             // Verifica estoque
-            if (!produtoService.verificarEstoque(itemRequest.getProdutoId(), itemRequest.getQuantidade())) {
+            if (!produtoService.verificarEstoque(itemRequest.produtoId(), itemRequest.quantidade())) {
                 throw new ProdutoIndisponivelException(
-                        itemRequest.getProdutoId(), 
-                        "Estoque insuficiente. Disponível: " + produto.getEstoque());
+                        itemRequest.produtoId(), 
+                        "Estoque insuficiente. Disponível: " + produto.estoque());
             }
             
             // Cria item do pedido com dados do produto
             ItemPedido item = new ItemPedido(
-                    produto.getId(),
-                    produto.getNome(),
-                    itemRequest.getQuantidade(),
-                    produto.getPreco()
+                    produto.id(),
+                    produto.nome(),
+                    itemRequest.quantidade(),
+                    produto.preco()
             );
             
             itens.add(item);
@@ -114,15 +115,7 @@ public class CriarPedidoUseCase {
                     pedido.getId(),
                     pedido.getNumeroPedido(),
                     pedido.getClienteId(),
-                    pedido.getItens().stream()
-                            .map(item -> new PedidoCriadoEvent.ItemPedidoEvent(
-                                    item.getProdutoId(),
-                                    item.getNomeProduto(),
-                                    item.getQuantidade(),
-                                    item.getPrecoUnitario(),
-                                    item.calcularSubtotal()
-                            ))
-                            .collect(Collectors.toList()),
+                    pedido.getItens().stream().map(item -> new ItemPedidoEvent(item.getProdutoId(), item.getNomeProduto(), item.getQuantidade(), item.getPrecoUnitario(), item.calcularSubtotal())).collect(Collectors.toList()),
                     pedido.calcularTotal(),
                     pedido.getStatus().name(),
                     pedido.getDataCriacao()
@@ -149,9 +142,6 @@ public class CriarPedidoUseCase {
         }
     }
     
-    /**
-     * Record para receber dados de item de pedido
-     */
-    public record ItemPedidoRequest(Long produtoId, Integer quantidade) {}
+    
 }
 
