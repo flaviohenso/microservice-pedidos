@@ -33,7 +33,7 @@ public class ProdutoRestClient implements ProdutoServicePort {
     }
     
     @Override
-    @Cacheable(value = "produtos", key = "#id", unless = "#result == null || #result.isEmpty()")
+    @Cacheable(value = "produtos", key = "#id", unless = "#result == null")
     public Optional<ProdutoDTO> buscarProdutoPorId(Long id) {
         try {
             String url = produtoServiceUrl + "/" + id;
@@ -42,7 +42,7 @@ public class ProdutoRestClient implements ProdutoServicePort {
             ProdutoDTO produto = restTemplate.getForObject(url, ProdutoDTO.class);
             
             if (produto != null) {
-                logger.info("Produto {} encontrado: {}", id, produto.getNome());
+                logger.info("Produto {} encontrado: {}", id, produto.nome());
                 return Optional.of(produto);
             }
             
@@ -74,11 +74,11 @@ public class ProdutoRestClient implements ProdutoServicePort {
             }
             
             ProdutoDTO produto = produtoOpt.get();
-            boolean estoqueDisponivel = produto.getEstoque() != null && produto.getEstoque() >= quantidade;
+            boolean estoqueDisponivel = produto.estoque() != null && produto.estoque() >= quantidade;
             
             if (!estoqueDisponivel) {
                 logger.warn("Estoque insuficiente para produto {}. Disponível: {}, Solicitado: {}", 
-                        produtoId, produto.getEstoque(), quantidade);
+                        produtoId, produto.estoque(), quantidade);
             }
             
             return estoqueDisponivel;
