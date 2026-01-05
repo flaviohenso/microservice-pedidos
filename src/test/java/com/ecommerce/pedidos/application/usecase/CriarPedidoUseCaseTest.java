@@ -120,3 +120,6 @@ class CriarPedidoUseCaseTest {
         verify(outboxRepository, never()).salvar(any());
     }
 }
+
+
+

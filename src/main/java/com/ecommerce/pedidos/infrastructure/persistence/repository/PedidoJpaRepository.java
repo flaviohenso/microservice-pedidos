@@ -24,3 +24,6 @@ public interface PedidoJpaRepository extends JpaRepository<PedidoJpaEntity, Long
     List<PedidoJpaEntity> findByClienteId(Long clienteId);
 }
 
+
+
+

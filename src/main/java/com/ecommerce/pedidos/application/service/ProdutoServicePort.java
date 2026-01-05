@@ -21,3 +21,6 @@ public interface ProdutoServicePort {
     boolean verificarEstoque(Long produtoId, Integer quantidade);
 }
 
+
+
+

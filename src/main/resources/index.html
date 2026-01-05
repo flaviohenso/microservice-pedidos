@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagrama de Arquitetura - Microservice Pedidos</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            padding: 40px;
+            color: #e8e8e8;
+        }
+        
+        @media print {
+            body {
+                background: white;
+                color: #1a1a2e;
+                padding: 20px;
+            }
+            .layer {
+                break-inside: avoid;
+                border: 2px solid #333 !important;
+            }
+            .layer-title {
+                background: #f0f0f0 !important;
+                color: #1a1a2e !important;
+            }
+            .component {
+                background: #f8f8f8 !important;
+                border: 1px solid #ccc !important;
+                color: #333 !important;
+            }
+            .arrow {
+                background: #333 !important;
+            }
+            .arrow-label {
+                color: #333 !important;
+            }
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
+        }
+        
+        /* External Systems */
+        .external-systems {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .external-box {
+            background: linear-gradient(145deg, #2d3748, #1a202c);
+            border: 2px solid #4a5568;
+            border-radius: 12px;
+            padding: 15px 25px;
+            text-align: center;
+            min-width: 150px;
+        }
+        
+        .external-box .icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+        
+        .external-box .name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .external-box .detail {
+            font-size: 0.75rem;
+            color: #718096;
+            margin-top: 4px;
+        }
+        
+        /* Arrows */
+        .arrow-container {
+            display: flex;
+            justify-content: center;
+            padding: 15px 0;
+        }
+        
+        .arrow {
+            width: 4px;
+            height: 40px;
+            background: linear-gradient(180deg, #00d4ff, #7b2cbf);
+            position: relative;
+        }
+        
+        .arrow::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 12px solid #7b2cbf;
+        }
+        
+        .arrow-label {
+            font-size: 0.8rem;
+            color: #a0aec0;
+            margin-left: 15px;
+            font-style: italic;
+        }
+        
+        /* Layers */
+        .layer {
+            background: linear-gradient(145deg, rgba(45, 55, 72, 0.9), rgba(26, 32, 44, 0.9));
+            border: 2px solid;
+            border-radius: 16px;
+            margin-bottom: 15px;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+        
+        .layer.presentation { border-color: #38b2ac; }
+        .layer.application { border-color: #805ad5; }
+        .layer.domain { border-color: #ed8936; }
+        .layer.infrastructure { border-color: #3182ce; }
+        
+        .layer-title {
+            padding: 12px 20px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .layer.presentation .layer-title { background: linear-gradient(90deg, #38b2ac, #285e61); }
+        .layer.application .layer-title { background: linear-gradient(90deg, #805ad5, #553c9a); }
+        .layer.domain .layer-title { background: linear-gradient(90deg, #ed8936, #c05621); }
+        .layer.infrastructure .layer-title { background: linear-gradient(90deg, #3182ce, #2c5282); }
+        
+        .layer-content {
+            padding: 20px;
+        }
+        
+        .component-group {
+            margin-bottom: 15px;
+        }
+        
+        .component-group:last-child {
+            margin-bottom: 0;
+        }
+        
+        .group-title {
+            font-size: 0.85rem;
+            color: #a0aec0;
+            margin-bottom: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .components {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .component {
+            background: rgba(74, 85, 104, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        
+        .component:hover {
+            background: rgba(74, 85, 104, 0.8);
+            transform: translateY(-2px);
+        }
+        
+        /* Summary Table */
+        .summary {
+            margin-top: 40px;
+            background: linear-gradient(145deg, rgba(45, 55, 72, 0.9), rgba(26, 32, 44, 0.9));
+            border-radius: 16px;
+            padding: 25px;
+            border: 2px solid #4a5568;
+        }
+        
+        .summary h2 {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            color: #e2e8f0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #4a5568;
+        }
+        
+        th {
+            background: rgba(74, 85, 104, 0.5);
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+        
+        td {
+            color: #a0aec0;
+        }
+        
+        tr:hover td {
+            background: rgba(74, 85, 104, 0.3);
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge.presentation { background: #38b2ac; color: white; }
+        .badge.application { background: #805ad5; color: white; }
+        .badge.domain { background: #ed8936; color: white; }
+        .badge.infrastructure { background: #3182ce; color: white; }
+        
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #718096;
+            font-size: 0.9rem;
+        }
+        
+        /* Flow Diagram */
+        .flow-section {
+            margin-top: 40px;
+        }
+        
+        .flow-section h2 {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            color: #e2e8f0;
+            text-align: center;
+        }
+        
+        .flow-container {
+            background: linear-gradient(145deg, rgba(45, 55, 72, 0.9), rgba(26, 32, 44, 0.9));
+            border-radius: 16px;
+            padding: 30px;
+            border: 2px solid #4a5568;
+        }
+        
+        .flow-step {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .flow-number {
+            width: 35px;
+            height: 35px;
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .flow-text {
+            flex: 1;
+        }
+        
+        .flow-text .class-name {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(74, 85, 104, 0.5);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .dependency-rule {
+            margin-top: 30px;
+            text-align: center;
+            padding: 20px;
+            background: rgba(237, 137, 54, 0.1);
+            border: 1px dashed #ed8936;
+            border-radius: 12px;
+        }
+        
+        .dependency-rule h3 {
+            color: #ed8936;
+            margin-bottom: 10px;
+        }
+        
+        .dependency-flow {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1rem;
+            color: #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏗️ Diagrama de Arquitetura em Camadas</h1>
+        <p class="subtitle">Microservice Pedidos - Clean Architecture / Hexagonal</p>
+        
+        <!-- External Systems -->
+        <div class="external-systems">
+            <div class="external-box">
+                <div class="icon">🌐</div>
+                <div class="name">HTTP Client</div>
+                <div class="detail">Swagger UI / REST</div>
+            </div>
+            <div class="external-box">
+                <div class="icon">🐘</div>
+                <div class="name">PostgreSQL</div>
+                <div class="detail">Database</div>
+            </div>
+            <div class="external-box">
+                <div class="icon">🐰</div>
+                <div class="name">RabbitMQ</div>
+                <div class="detail">Message Broker</div>
+            </div>
+            <div class="external-box">
+                <div class="icon">📦</div>
+                <div class="name">Microservice Produtos</div>
+                <div class="detail">REST API</div>
+            </div>
+        </div>
+        
+        <div class="arrow-container">
+            <div class="arrow"></div>
+        </div>
+        
+        <!-- Presentation Layer -->
+        <div class="layer presentation">
+            <div class="layer-title">
+                <span>📦</span> PRESENTATION LAYER
+            </div>
+            <div class="layer-content">
+                <div class="component-group">
+                    <div class="group-title">Controllers</div>
+                    <div class="components">
+                        <div class="component">PedidoController</div>
+                        <div class="component">ResilienceHealthController</div>
+                    </div>
+                </div>
+                <div class="component-group">
+                    <div class="group-title">DTOs</div>
+                    <div class="components">
+                        <div class="component">PedidoRequestDTO</div>
+                        <div class="component">PedidoResponseDTO</div>
+                        <div class="component">ItemPedidoDTO</div>
+                    </div>
+                </div>
+                <div class="component-group">
+                    <div class="group-title">Exception Handler</div>
+                    <div class="components">
+                        <div class="component">GlobalExceptionHandler</div>
+                        <div class="component">PedidoDTOMapper</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="arrow-container">
+            <div class="arrow"></div>
+            <span class="arrow-label">chama Use Cases</span>
+        </div>
+        
+        <!-- Application Layer -->
+        <div class="layer application">
+            <div class="layer-title">
+                <span>⚙️</span> APPLICATION LAYER
+            </div>
+            <div class="layer-content">
+                <div class="component-group">
+                    <div class="group-title">Use Cases</div>
+                    <div class="components">
+                        <div class="component">CriarPedidoUseCase</div>
+                        <div class="component">BuscarPedidoPorIdUseCase</div>
+                        <div class="component">CancelarPedidoUseCase</div>
+                        <div class="component">ListarPedidosUseCase</div>
+                    </div>
+                </div>
+                <div class="component-group">
+                    <div class="group-title">Ports (Interfaces)</div>
+                    <div class="components">
+                        <div class="component">ProdutoServicePort</div>
+                        <div class="component">EventPublisherPort</div>
+                    </div>
+                </div>
+                <div class="component-group">
+                    <div class="group-title">Events</div>
+                    <div class="components">
+                        <div class="component">PedidoCriadoEvent</div>
+                        <div class="component">ItemPedidoEvent</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="arrow-container">
+            <div class="arrow"></div>
+            <span class="arrow-label">usa entidades e ports do domain</span>
+        </div>
+        
+        <!-- Domain Layer -->
+        <div class="layer domain">
+            <div class="layer-title">
+                <span>🎯</span> DOMAIN LAYER (Core)
+            </div>
+            <div class="layer-content">
+                <div class="component-group">
+                    <div class="group-title">Entities</div>
+                    <div class="components">
+                        <div class="component">Pedido</div>
+                        <div class="component">ItemPedido</div>
+                        <div class="component">OutboxEvent</div>
+                        <div class="component">StatusPedido</div>
+                        <div class="component">OutboxStatus</div>
+                    </div>
+                </div>
+                <div class="component-group">
+                    <div class="group-title">Repository Ports</div>
+                    <div class="components">
+                        <div class="component">PedidoRepositoryPort</div>
+                        <div class="component">OutboxRepositoryPort</div>
+                    </div>
+                </div>
+                <div class="component-group">
+                    <div class="group-title">Domain Exceptions</div>
+                    <div class="components">
+                        <div class="component">PedidoNotFoundException</div>
+                        <div class="component">ProdutoIndisponivelException</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="arrow-container">
+            <div class="arrow" style="transform: rotate(180deg);"></div>
+            <span class="arrow-label">implementa interfaces do domain</span>
+        </div>
+        
+        <!-- Infrastructure Layer -->
+        <div class="layer infrastructure">
+            <div class="layer-title">
+                <span>🔧</span> INFRASTRUCTURE LAYER
+            </div>
+            <div class="layer-content">
+                <div class="component-group">
+                    <div class="group-title">Persistence</div>
+                    <div class="components">
+                        <div class="component">PedidoRepositoryImpl</div>
+                        <div class="component">OutboxRepositoryImpl</div>
+                        <div class="component">PedidoJpaRepository</div>
+                        <div class="component">OutboxJpaRepository</div>
+                        <div class="component">PedidoJpaEntity</div>
+                        <div class="component">ItemPedidoJpaEntity</div>
+                        <div class="component">OutboxJpaEntity</div>
+                    </div>
+                </div>
+                <div class="component-group">
+                    <div class="group-title">External Clients</div>
+                    <div class="components">
+                        <div class="component">ProdutoRestClient</div>
+                        <div class="component">ProdutoDTO</div>
+                    </div>
+                </div>
+                <div class="component-group">
+                    <div class="group-title">Messaging</div>
+                    <div class="components">
+                        <div class="component">RabbitMQPublisher</div>
+                        <div class="component">OutboxProcessor</div>
+                    </div>
+                </div>
+                <div class="component-group">
+                    <div class="group-title">Configuration</div>
+                    <div class="components">
+                        <div class="component">BeanConfiguration</div>
+                        <div class="component">CacheConfig</div>
+                        <div class="component">OpenApiConfig</div>
+                        <div class="component">RabbitMQConfig</div>
+                        <div class="component">RestClientConfig</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dependency Rule -->
+        <div class="dependency-rule">
+            <h3>📐 Regra de Dependência (DIP)</h3>
+            <div class="dependency-flow">
+                Presentation → Application → Domain ← Infrastructure
+            </div>
+            <p style="margin-top: 10px; color: #a0aec0; font-size: 0.9rem;">
+                As camadas internas definem interfaces (Ports) e as camadas externas as implementam (Adapters)
+            </p>
+        </div>
+        
+        <!-- Summary Table -->
+        <div class="summary">
+            <h2>📊 Resumo das Camadas</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Camada</th>
+                        <th>Responsabilidade</th>
+                        <th>Componentes Principais</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="badge presentation">Presentation</span></td>
+                        <td>Entrada/Saída HTTP, validação, conversão DTOs</td>
+                        <td>Controllers, DTOs, ExceptionHandler</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge application">Application</span></td>
+                        <td>Orquestração de casos de uso, lógica de aplicação</td>
+                        <td>Use Cases, Ports, Events</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge domain">Domain</span></td>
+                        <td>Regras de negócio, entidades, contratos</td>
+                        <td>Entities, Repository Ports, Exceptions</td>
+                    </tr>
+                    <tr>
+                        <td><span class="badge infrastructure">Infrastructure</span></td>
+                        <td>Implementações técnicas, adaptadores externos</td>
+                        <td>JPA, REST Client, RabbitMQ, Configs</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Flow Section -->
+        <div class="flow-section">
+            <h2>🔄 Fluxo de Criação de Pedido</h2>
+            <div class="flow-container">
+                <div class="flow-step">
+                    <div class="flow-number">1</div>
+                    <div class="flow-text">
+                        HTTP POST /api/pedidos → <span class="class-name">PedidoController</span>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">2</div>
+                    <div class="flow-text">
+                        Controller chama → <span class="class-name">CriarPedidoUseCase.executar()</span>
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">3</div>
+                    <div class="flow-text">
+                        UseCase valida produtos via → <span class="class-name">ProdutoServicePort</span> (implementado por ProdutoRestClient)
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">4</div>
+                    <div class="flow-text">
+                        Cria entidade → <span class="class-name">Pedido</span> (Domain)
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">5</div>
+                    <div class="flow-text">
+                        Persiste via → <span class="class-name">PedidoRepositoryPort</span> (implementado por PedidoRepositoryImpl)
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">6</div>
+                    <div class="flow-text">
+                        Registra evento na → <span class="class-name">OutboxEvent</span> (Outbox Pattern)
+                    </div>
+                </div>
+                <div class="flow-step">
+                    <div class="flow-number">7</div>
+                    <div class="flow-text">
+                        <span class="class-name">OutboxProcessor</span> publica no RabbitMQ assincronamente
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Microservice Pedidos • Clean Architecture • Java 21 + Spring Boot 3.3</p>
+            <p style="margin-top: 5px;">Gerado em: <script>document.write(new Date().toLocaleDateString('pt-BR'))</script></p>
+        </div>
+    </div>
+</body>
+</html>
