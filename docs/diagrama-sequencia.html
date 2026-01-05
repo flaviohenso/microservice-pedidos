@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagrama de Sequência - Virtual Threads</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #21262d 100%);
+            min-height: 100vh;
+            padding: 40px;
+            color: #c9d1d9;
+        }
+        
+        @media print {
+            body {
+                background: white;
+                color: #1a1a2e;
+                padding: 15px;
+            }
+            .container { max-width: 100%; }
+            .participant { border: 2px solid #333 !important; background: #f5f5f5 !important; }
+            .participant-label { color: #333 !important; }
+            .lifeline { border-color: #666 !important; }
+            .message-line { stroke: #333 !important; }
+            .message-label { fill: #333 !important; }
+            .activation { fill: #ddd !important; stroke: #333 !important; }
+            .note { background: #fffde7 !important; border-color: #f9a825 !important; color: #333 !important; }
+            .section-title { color: #333 !important; }
+            h1, h2 { color: #333 !important; }
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, #58a6ff, #a371f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #8b949e;
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+        
+        .badge-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 35px;
+            flex-wrap: wrap;
+        }
+        
+        .badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .badge.java { background: #f89820; color: white; }
+        .badge.spring { background: #6db33f; color: white; }
+        .badge.virtual { background: #a371f7; color: white; }
+        
+        .sequence-container {
+            background: linear-gradient(145deg, rgba(22, 27, 34, 0.95), rgba(13, 17, 23, 0.95));
+            border: 1px solid #30363d;
+            border-radius: 16px;
+            padding: 30px;
+            overflow-x: auto;
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 1.2rem;
+            color: #58a6ff;
+            margin-bottom: 25px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .diagram {
+            position: relative;
+            min-width: 1200px;
+            padding: 20px 0;
+        }
+        
+        .participants {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .participant {
+            background: linear-gradient(145deg, #238636, #1a7f37);
+            border: 2px solid #3fb950;
+            border-radius: 10px;
+            padding: 12px 20px;
+            text-align: center;
+            min-width: 130px;
+        }
+        
+        .participant.client { background: linear-gradient(145deg, #1f6feb, #1158c7); border-color: #58a6ff; }
+        .participant.tomcat { background: linear-gradient(145deg, #8957e5, #6e40c9); border-color: #a371f7; }
+        .participant.controller { background: linear-gradient(145deg, #238636, #1a7f37); border-color: #3fb950; }
+        .participant.usecase { background: linear-gradient(145deg, #9e6a03, #845306); border-color: #d29922; }
+        .participant.service { background: linear-gradient(145deg, #da3633, #b62324); border-color: #f85149; }
+        .participant.repo { background: linear-gradient(145deg, #0d6efd, #0a58ca); border-color: #58a6ff; }
+        .participant.external { background: linear-gradient(145deg, #6e7681, #484f58); border-color: #8b949e; }
+        
+        .participant-icon {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+        
+        .participant-label {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: white;
+        }
+        
+        .participant-type {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.7);
+            margin-top: 3px;
+        }
+        
+        .svg-container {
+            width: 100%;
+            margin-top: -10px;
+        }
+        
+        svg {
+            width: 100%;
+            height: auto;
+        }
+        
+        .lifeline {
+            stroke: #30363d;
+            stroke-width: 2;
+            stroke-dasharray: 8, 4;
+        }
+        
+        .message-line {
+            stroke: #58a6ff;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+        
+        .message-line.return {
+            stroke: #8b949e;
+            stroke-dasharray: 6, 3;
+            marker-end: url(#arrowhead-gray);
+        }
+        
+        .message-line.suspend {
+            stroke: #f0883e;
+            stroke-width: 3;
+            marker-end: url(#arrowhead-orange);
+        }
+        
+        .message-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            fill: #c9d1d9;
+        }
+        
+        .message-label.highlight {
+            fill: #a371f7;
+            font-weight: 600;
+        }
+        
+        .activation {
+            fill: #238636;
+            stroke: #3fb950;
+            stroke-width: 1;
+            rx: 3;
+        }
+        
+        .activation.virtual {
+            fill: #8957e5;
+            stroke: #a371f7;
+        }
+        
+        .activation.suspended {
+            fill: #484f58;
+            stroke: #6e7681;
+            stroke-dasharray: 4, 2;
+        }
+        
+        .note {
+            background: linear-gradient(145deg, #1c2128, #161b22);
+            border: 1px solid #a371f7;
+            border-left: 4px solid #a371f7;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 20px 0;
+            font-size: 0.9rem;
+        }
+        
+        .note.warning {
+            border-color: #d29922;
+            border-left-color: #d29922;
+        }
+        
+        .note.success {
+            border-color: #3fb950;
+            border-left-color: #3fb950;
+        }
+        
+        .note-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .note-content {
+            color: #8b949e;
+            line-height: 1.6;
+        }
+        
+        .note-content code {
+            background: rgba(110, 118, 129, 0.2);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            color: #a371f7;
+        }
+        
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #30363d;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+        }
+        
+        .legend-line {
+            width: 40px;
+            height: 3px;
+            border-radius: 2px;
+        }
+        
+        .legend-line.sync { background: #58a6ff; }
+        .legend-line.return { background: #8b949e; background: repeating-linear-gradient(90deg, #8b949e 0, #8b949e 6px, transparent 6px, transparent 10px); }
+        .legend-line.suspend { background: #f0883e; height: 4px; }
+        
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-top: 30px;
+        }
+        
+        @media (max-width: 900px) {
+            .comparison { grid-template-columns: 1fr; }
+        }
+        
+        .comparison-box {
+            background: linear-gradient(145deg, rgba(22, 27, 34, 0.95), rgba(13, 17, 23, 0.95));
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 25px;
+        }
+        
+        .comparison-box.bad { border-color: #f85149; }
+        .comparison-box.good { border-color: #3fb950; }
+        
+        .comparison-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .comparison-box.bad .comparison-title { color: #f85149; }
+        .comparison-box.good .comparison-title { color: #3fb950; }
+        
+        .comparison-content {
+            font-size: 0.9rem;
+            color: #8b949e;
+            line-height: 1.7;
+        }
+        
+        .comparison-content strong {
+            color: #c9d1d9;
+        }
+        
+        .thread-visual {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 15px 0;
+        }
+        
+        .thread-bar {
+            height: 25px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0 10px;
+            color: white;
+        }
+        
+        .thread-bar.platform { background: linear-gradient(90deg, #f85149 0%, #f85149 70%, #484f58 70%); }
+        .thread-bar.virtual { background: linear-gradient(90deg, #3fb950 0%, #3fb950 30%, #484f58 30%, #484f58 35%, #3fb950 35%, #3fb950 50%, #484f58 50%, #484f58 55%, #3fb950 55%); }
+        
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #6e7681;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Diagrama de Sequência</h1>
+        <p class="subtitle">Processamento Não-Bloqueante com Virtual Threads</p>
+        
+        <div class="badge-container">
+            <span class="badge java">☕ Java 21</span>
+            <span class="badge spring">🍃 Spring Boot 3.3</span>
+            <span class="badge virtual">⚡ Virtual Threads</span>
+        </div>
+        
+        <div class="sequence-container">
+            <div class="section-title">
+                <span>📊</span> Fluxo: POST /api/pedidos (Criar Pedido)
+            </div>
+            
+            <div class="diagram">
+                <div class="participants">
+                    <div class="participant client">
+                        <div class="participant-icon">👤</div>
+                        <div class="participant-label">Client</div>
+                        <div class="participant-type">HTTP</div>
+                    </div>
+                    <div class="participant tomcat">
+                        <div class="participant-icon">🧵</div>
+                        <div class="participant-label">Tomcat</div>
+                        <div class="participant-type">Virtual Thread</div>
+                    </div>
+                    <div class="participant controller">
+                        <div class="participant-icon">🎮</div>
+                        <div class="participant-label">PedidoController</div>
+                        <div class="participant-type">REST</div>
+                    </div>
+                    <div class="participant usecase">
+                        <div class="participant-icon">⚙️</div>
+                        <div class="participant-label">CriarPedidoUseCase</div>
+                        <div class="participant-type">Application</div>
+                    </div>
+                    <div class="participant service">
+                        <div class="participant-icon">🔌</div>
+                        <div class="participant-label">ProdutoFeignClient</div>
+                        <div class="participant-type">Infrastructure</div>
+                    </div>
+                    <div class="participant repo">
+                        <div class="participant-icon">💾</div>
+                        <div class="participant-label">PedidoRepository</div>
+                        <div class="participant-type">Persistence</div>
+                    </div>
+                    <div class="participant external">
+                        <div class="participant-icon">📦</div>
+                        <div class="participant-label">Produtos API</div>
+                        <div class="participant-type">External</div>
+                    </div>
+                </div>
+                
+                <div class="svg-container">
+                    <svg viewBox="0 0 1200 650" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#58a6ff"/>
+                            </marker>
+                            <marker id="arrowhead-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#8b949e"/>
+                            </marker>
+                            <marker id="arrowhead-orange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#f0883e"/>
+                            </marker>
+                        </defs>
+                        
+                        <line class="lifeline" x1="65" y1="0" x2="65" y2="650"/>
+                        <line class="lifeline" x1="230" y1="0" x2="230" y2="650"/>
+                        <line class="lifeline" x1="395" y1="0" x2="395" y2="650"/>
+                        <line class="lifeline" x1="560" y1="0" x2="560" y2="650"/>
+                        <line class="lifeline" x1="730" y1="0" x2="730" y2="650"/>
+                        <line class="lifeline" x1="900" y1="0" x2="900" y2="650"/>
+                        <line class="lifeline" x1="1070" y1="0" x2="1070" y2="650"/>
+                        
+                        <rect class="activation" x="58" y="25" width="14" height="580"/>
+                        <rect class="activation virtual" x="223" y="35" width="14" height="560"/>
+                        <rect class="activation" x="388" y="55" width="14" height="520"/>
+                        <rect class="activation" x="553" y="95" width="14" height="450"/>
+                        <rect class="activation" x="723" y="135" width="14" height="130"/>
+                        <rect class="activation suspended" x="553" y="175" width="14" height="70" opacity="0.5"/>
+                        <rect class="activation" x="893" y="315" width="14" height="200"/>
+                        <rect class="activation suspended" x="553" y="335" width="14" height="160" opacity="0.5"/>
+                        <rect class="activation" x="1063" y="155" width="14" height="90"/>
+                        
+                        <line class="message-line" x1="72" y1="35" x2="218" y2="35"/>
+                        <text class="message-label" x="100" y="28">POST /api/pedidos</text>
+                        
+                        <rect x="150" y="45" width="160" height="22" fill="#8957e5" rx="4" opacity="0.2"/>
+                        <text class="message-label highlight" x="158" y="60">⚡ Cria Virtual Thread</text>
+                        
+                        <line class="message-line" x1="237" y1="75" x2="383" y2="75"/>
+                        <text class="message-label" x="270" y="68">criarPedido(request)</text>
+                        
+                        <line class="message-line" x1="402" y1="105" x2="548" y2="105"/>
+                        <text class="message-label" x="420" y="98">executar(clienteId, itens)</text>
+                        
+                        <line class="message-line" x1="567" y1="145" x2="718" y2="145"/>
+                        <text class="message-label" x="590" y="138">buscarProdutoPorId(id)</text>
+                        
+                        <line class="message-line suspend" x1="737" y1="165" x2="1058" y2="165"/>
+                        <text class="message-label highlight" x="830" y="158">🔄 HTTP GET (I/O Bloqueante)</text>
+                        
+                        <rect x="750" y="180" width="200" height="40" fill="#f0883e" rx="6" opacity="0.15"/>
+                        <text class="message-label" x="762" y="195" fill="#f0883e" font-weight="600">⏸️ VThread SUSPENDE</text>
+                        <text class="message-label" x="762" y="210" fill="#8b949e">Carrier thread liberada</text>
+                        
+                        <line class="message-line return" x1="1058" y1="235" x2="737" y2="235"/>
+                        <text class="message-label" x="870" y="228">ProdutoDTO</text>
+                        
+                        <rect x="750" y="245" width="200" height="25" fill="#3fb950" rx="6" opacity="0.15"/>
+                        <text class="message-label" x="762" y="262" fill="#3fb950" font-weight="600">▶️ VThread RETOMA</text>
+                        
+                        <line class="message-line return" x1="718" y1="275" x2="567" y2="275"/>
+                        <text class="message-label" x="600" y="268">Optional&lt;ProdutoDTO&gt;</text>
+                        
+                        <line class="message-line" x1="567" y1="325" x2="888" y2="325"/>
+                        <text class="message-label" x="660" y="318">pedidoRepository.salvar(pedido)</text>
+                        
+                        <rect x="600" y="345" width="200" height="40" fill="#f0883e" rx="6" opacity="0.15"/>
+                        <text class="message-label" x="612" y="360" fill="#f0883e" font-weight="600">⏸️ VThread SUSPENDE</text>
+                        <text class="message-label" x="612" y="375" fill="#8b949e">Aguardando DB (JDBC)</text>
+                        
+                        <rect x="830" y="355" width="140" height="55" fill="none" stroke="#58a6ff" stroke-dasharray="4,2" rx="6"/>
+                        <text class="message-label" x="842" y="372">INSERT pedido</text>
+                        <text class="message-label" x="842" y="388">INSERT itens</text>
+                        <text class="message-label" x="842" y="404">INSERT outbox</text>
+                        
+                        <rect x="600" y="420" width="200" height="25" fill="#3fb950" rx="6" opacity="0.15"/>
+                        <text class="message-label" x="612" y="437" fill="#3fb950" font-weight="600">▶️ VThread RETOMA</text>
+                        
+                        <line class="message-line return" x1="888" y1="505" x2="567" y2="505"/>
+                        <text class="message-label" x="680" y="498">Pedido (salvo)</text>
+                        
+                        <line class="message-line return" x1="548" y1="535" x2="402" y2="535"/>
+                        <text class="message-label" x="430" y="528">Pedido</text>
+                        
+                        <line class="message-line return" x1="383" y1="565" x2="237" y2="565"/>
+                        <text class="message-label" x="265" y="558">ResponseEntity&lt;PedidoDTO&gt;</text>
+                        
+                        <line class="message-line return" x1="218" y1="595" x2="72" y2="595"/>
+                        <text class="message-label" x="100" y="588">HTTP 201 Created</text>
+                    </svg>
+                </div>
+                
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-line sync"></div>
+                        <span>Chamada síncrona</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line return"></div>
+                        <span>Retorno</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line suspend"></div>
+                        <span>I/O Bloqueante (suspende VThread)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div style="width: 20px; height: 20px; background: #8957e5; border-radius: 3px;"></div>
+                        <span>Virtual Thread ativa</span>
+                    </div>
+                    <div class="legend-item">
+                        <div style="width: 20px; height: 20px; background: #484f58; border-radius: 3px; border: 1px dashed #6e7681;"></div>
+                        <span>Virtual Thread suspensa</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="note success">
+            <div class="note-title">
+                <span>✅</span> Como Virtual Threads Funcionam
+            </div>
+            <div class="note-content">
+                Quando a Virtual Thread encontra uma <strong>operação bloqueante</strong> (HTTP call, JDBC, I/O), 
+                ela <strong>suspende</strong> automaticamente e libera a <strong>carrier thread</strong> (thread do SO) 
+                para executar outras Virtual Threads. Quando o I/O completa, a Virtual Thread é <strong>retomada</strong> 
+                em qualquer carrier thread disponível. Isso permite <strong>milhares de requisições simultâneas</strong> 
+                com poucas threads do SO.
+            </div>
+        </div>
+        
+        <div class="note warning">
+            <div class="note-title">
+                <span>⚠️</span> Pontos de Suspensão no Fluxo
+            </div>
+            <div class="note-content">
+                <strong>1.</strong> <code>ProdutoFeignClient.buscarPorId()</code> → HTTP call para API externa<br>
+                <strong>2.</strong> <code>PedidoRepositoryImpl.salvar()</code> → Operações JDBC no PostgreSQL<br><br>
+                Em ambos os pontos, a Virtual Thread suspende e a carrier thread fica livre para processar outras requisições!
+            </div>
+        </div>
+        
+        <div class="comparison">
+            <div class="comparison-box bad">
+                <div class="comparison-title">
+                    <span>❌</span> Platform Threads (Tradicional)
+                </div>
+                <div class="comparison-content">
+                    <strong>Pool limitado:</strong> ~200 threads (padrão Tomcat)<br><br>
+                    Cada requisição ocupa 1 thread durante <strong>toda a operação</strong>, 
+                    mesmo quando está apenas esperando I/O.
+                    
+                    <div class="thread-visual">
+                        <div class="thread-bar platform">Thread 1: ████████████░░░░░░░░ (70% bloqueada)</div>
+                        <div class="thread-bar platform">Thread 2: ████████████░░░░░░░░ (70% bloqueada)</div>
+                    </div>
+                    
+                    <strong>Resultado:</strong> Com 200 threads e I/O lento, suporta ~200 req simultâneas.
+                </div>
+            </div>
+            
+            <div class="comparison-box good">
+                <div class="comparison-title">
+                    <span>✅</span> Virtual Threads (Java 21)
+                </div>
+                <div class="comparison-content">
+                    <strong>Sem limite prático:</strong> milhões de Virtual Threads<br><br>
+                    Quando bloqueia em I/O, a Virtual Thread <strong>suspende</strong> e 
+                    libera a carrier thread para outras tarefas.
+                    
+                    <div class="thread-visual">
+                        <div class="thread-bar virtual">VT1→VT5→VT9→VT2→VT7→VT3 (carrier reutilizada)</div>
+                        <div class="thread-bar virtual">VT4→VT8→VT6→VT10→VT11 (carrier reutilizada)</div>
+                    </div>
+                    
+                    <strong>Resultado:</strong> Com ~10 carriers, suporta 10.000+ req simultâneas!
+                </div>
+            </div>
+        </div>
+        
+        <div class="note" style="margin-top: 25px;">
+            <div class="note-title">
+                <span>⚙️</span> Configuração Utilizada
+            </div>
+            <div class="note-content">
+                <code>spring.threads.virtual.enabled=true</code><br><br>
+                Esta única propriedade no <code>application.properties</code> habilita Virtual Threads 
+                para todas as requisições HTTP no Tomcat. Nenhuma mudança de código é necessária!
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Microservice Pedidos • Java 21 + Spring Boot 3.3 • Virtual Threads (Project Loom)</p>
+            <p style="margin-top: 5px;">Gerado em: <script>document.write(new Date().toLocaleDateString('pt-BR'))</script></p>
+        </div>
+    </div>
+</body>
+</html>
+
