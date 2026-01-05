@@ -62,8 +62,7 @@ public class PedidoController {
         // Converte itens do DTO para o formato esperado pelo use case
         var itensRequest = request.itens().stream()
         .map(item -> new ItemPedidoRequest(item.produtoId(), item.quantidade())).collect(Collectors.toList());
-        
-        
+                
         Pedido pedido = criarPedidoUseCase.executar(request.clienteId(), itensRequest);
         
         PedidoResponseDTO response = PedidoDTOMapper.toResponseDTO(pedido);
@@ -81,6 +80,7 @@ public class PedidoController {
             @Parameter(description = "ID do pedido") @PathVariable Long id) {
         
         Pedido pedido = buscarPedidoPorIdUseCase.executar(id);
+        
         PedidoResponseDTO response = PedidoDTOMapper.toResponseDTO(pedido);
         
         return ResponseEntity.ok(response);
@@ -135,4 +135,7 @@ public class PedidoController {
         return ResponseEntity.ok(response);
     }
 }
+
+
+
 

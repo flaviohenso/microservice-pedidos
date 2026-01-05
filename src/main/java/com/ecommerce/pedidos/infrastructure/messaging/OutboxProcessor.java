@@ -32,7 +32,7 @@ public class OutboxProcessor {
             OutboxRepositoryPort outboxRepository,
             EventPublisherPort eventPublisher,
             @Value("${outbox.processor.max-retries:3}") int maxRetries,
-            @Value("${outbox.processor.batch-size:10}") int batchSize) {
+            @Value("${outbox.processor.batch-size:100}") int batchSize) {
         this.outboxRepository = outboxRepository;
         this.eventPublisher = eventPublisher;
         this.maxRetries = maxRetries;
@@ -154,4 +154,7 @@ public class OutboxProcessor {
         }
     }
 }
+
+
+
 

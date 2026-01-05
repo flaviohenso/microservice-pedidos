@@ -11,3 +11,5 @@ public record ProdutoDTO(Long id, String nome, String descricao, BigDecimal prec
         LocalDateTime dataCriacao) {
 
 }
+
+
