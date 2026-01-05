@@ -25,3 +25,6 @@ public interface OutboxJpaRepository extends JpaRepository<OutboxJpaEntity, Long
     List<OutboxJpaEntity> findByStatusOrderByCreatedAtAsc(OutboxStatus status, Pageable pageable);
 }
 
+
+
+

@@ -16,3 +16,6 @@ public interface EventPublisherPort {
     void publicarEvento(String eventType, String routingKey, String payload);
 }
 
+
+
+

@@ -32,3 +32,6 @@ public interface OutboxRepositoryPort {
     OutboxEvent atualizar(OutboxEvent event);
 }
 
+
+
+
