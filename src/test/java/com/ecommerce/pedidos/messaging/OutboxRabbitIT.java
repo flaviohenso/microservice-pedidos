@@ -137,15 +137,15 @@ class OutboxRabbitIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void DEFEITO_CONHECIDO_limpezaNaoRemoveEventosProcessados() {
+    void limpeza_removeEventosProcessadosComSucesso() {
         criarPedido();
         outboxProcessor.processarEventosPendentes();
         assertThat(outboxJpaRepository.findByStatus(OutboxStatus.PROCESSED)).hasSize(1);
 
         outboxProcessor.limparEventosProcessados();
 
-        // Hoje o método só conta; não remove nada.
-        assertThat(outboxJpaRepository.findByStatus(OutboxStatus.PROCESSED)).hasSize(1);
+        // Com o expurgo implementado e retenção 0 no perfil de teste, eventos processados são removidos
+        assertThat(outboxJpaRepository.findByStatus(OutboxStatus.PROCESSED)).isEmpty();
     }
 
     @Test

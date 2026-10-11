@@ -3,6 +3,7 @@ package com.ecommerce.pedidos.domain.repository;
 import com.ecommerce.pedidos.domain.entity.OutboxEvent;
 import com.ecommerce.pedidos.domain.entity.OutboxStatus;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -30,6 +31,13 @@ public interface OutboxRepositoryPort {
      * Atualiza um evento Outbox
      */
     OutboxEvent atualizar(OutboxEvent event);
+
+    /**
+     * Remove eventos com status PROCESSED processados até a dataLimite especificada
+     * @param dataLimite data/hora limite para expurgo
+     * @return quantidade de registros removidos
+     */
+    int deletarProcessadosAntesDe(LocalDateTime dataLimite);
 }
 
 
