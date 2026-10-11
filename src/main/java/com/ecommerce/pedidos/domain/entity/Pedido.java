@@ -24,7 +24,7 @@ public class Pedido {
     // Construtor para criação (sem ID)
     public Pedido(Long clienteId, List<ItemPedido> itens) {
         this.validarCamposObrigatorios(clienteId, itens);
-        this.validarRegrasDeNegocio(itens);
+        this.validarRegrasDeNegocio(clienteId, itens);
         
         this.numeroPedido = gerarNumeroPedido();
         this.clienteId = clienteId;
@@ -57,7 +57,7 @@ public class Pedido {
         }
     }
     
-    private void validarRegrasDeNegocio(List<ItemPedido> itens) {
+    private void validarRegrasDeNegocio(Long clienteId, List<ItemPedido> itens) {
         if (clienteId != null && clienteId <= 0) {
             throw new IllegalArgumentException("ID do cliente deve ser positivo");
         }

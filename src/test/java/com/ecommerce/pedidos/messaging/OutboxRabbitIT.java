@@ -124,18 +124,16 @@ class OutboxRabbitIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void DEFEITO_CONHECIDO_cancelamentoEhMarcadoProcessadoMasNaoHaFilaParaORoutingKey() {
-        // Não existe fila/binding para "pedido.cancelado": o broker descarta a mensagem
-        // silenciosamente e o Outbox marca como PROCESSED. Ao corrigir, a mensagem deve chegar a uma fila.
+    void cancelamento_eventoPublicadoEEntregueNaFilaDeCancelados() {
         long id = criarPedido();
         rest.exchange("/api/pedidos/" + id + "/cancelar", HttpMethod.PUT, null, JsonNode.class);
 
         outboxProcessor.processarEventosPendentes();
 
         assertThat(eventoDoTipo("PEDIDO_CANCELADO").getStatus()).isEqualTo(OutboxStatus.PROCESSED);
-        // na fila de criados só chega o evento de criação; o de cancelamento se perde
         assertThat(rabbitTemplate.receive(RabbitMQConfig.PEDIDOS_CRIADOS_QUEUE, 5000)).isNotNull();
-        assertThat(rabbitTemplate.receive(RabbitMQConfig.PEDIDOS_CRIADOS_QUEUE, 500)).isNull();
+        Message msgCancelado = rabbitTemplate.receive(RabbitMQConfig.PEDIDOS_CANCELADOS_QUEUE, 5000);
+        assertThat(msgCancelado).isNotNull();
     }
 
     @Test
@@ -153,8 +151,7 @@ class OutboxRabbitIT extends AbstractIntegrationTest {
     @Test
     void topologia_exchangeFilasEDlqExistemNoBroker() {
         assertThat(rabbitAdmin.getQueueProperties(RabbitMQConfig.PEDIDOS_CRIADOS_QUEUE)).isNotNull();
+        assertThat(rabbitAdmin.getQueueProperties(RabbitMQConfig.PEDIDOS_CANCELADOS_QUEUE)).isNotNull();
         assertThat(rabbitAdmin.getQueueProperties(RabbitMQConfig.PEDIDOS_DLQ)).isNotNull();
-        // fila de cancelados ainda não existe (ver defeito conhecido acima)
-        assertThat(rabbitAdmin.getQueueProperties("pedidos.cancelados.queue")).isNull();
     }
 }

@@ -131,15 +131,16 @@ public class OutboxJpaEntity {
         this.errorMessage = errorMessage;
     }
 
+    @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        OutboxJpaEntity other = (OutboxJpaEntity) obj;
-        return Objects.equals(id, other.id) && Objects.equals(aggregateType, other.aggregateType) && Objects.equals(aggregateId, other.aggregateId) && Objects.equals(eventType, other.eventType) && Objects.equals(payload, other.payload) && Objects.equals(status, other.status) && Objects.equals(createdAt, other.createdAt) && Objects.equals(processedAt, other.processedAt) && Objects.equals(retryCount, other.retryCount) && Objects.equals(errorMessage, other.errorMessage);
+        if (!(obj instanceof OutboxJpaEntity other)) return false;
+        return id != null && Objects.equals(id, other.id);
     }
 
+    @Override
     public int hashCode() {
-        return Objects.hash(id, aggregateType, aggregateId, eventType, payload, status, createdAt, processedAt, retryCount, errorMessage);
+        return getClass().hashCode();
     }
 }
 

@@ -70,29 +70,29 @@ class ProdutoResilienciaIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void DEFEITO_CONHECIDO_verificarEstoqueNaoUsaCache_autoInvocacaoIgnoraProxy() {
-        // verificarEstoque chama this.buscarProdutoPorId: o @Cacheable não é aplicado,
-        // então cada verificação gera uma chamada HTTP nova.
+    void verificarEstoque_usaCache_segundaChamadaNaoFazHttp() {
+        // verificarEstoque usa o proxy de produtoService, portanto as chamadas subsequentes
+        // são atendidas pelo cache sem gerar novas requisições HTTP.
         stubProduto(1L, "Notebook", "2500.00", 5);
 
         produtoService.verificarEstoque(1L, 1);
         produtoService.verificarEstoque(1L, 1);
 
-        assertThat(requisicoesPrimario(1L)).isEqualTo(2);
+        assertThat(requisicoesPrimario(1L)).isEqualTo(1);
     }
 
     @Test
-    void criacaoDePedido_fazDuasChamadasHttpPorItemNaPrimeiraVezEUmaDepoisDoCache() {
-        // Caracteriza o "N+1" atual: buscar (cacheável) + verificarEstoque (sem cache)
+    void criacaoDePedido_reutilizaCacheEEvitaChamadasDuplicadas() {
+        // Após buscar o produto, a verificação de estoque reaproveita o cache
         stubProduto(1L, "Notebook", "2500.00", 10);
 
         produtoService.buscarProdutoPorId(1L);
         produtoService.verificarEstoque(1L, 1);
-        assertThat(requisicoesPrimario(1L)).isEqualTo(2);
+        assertThat(requisicoesPrimario(1L)).isEqualTo(1);
 
         produtoService.buscarProdutoPorId(1L);
         produtoService.verificarEstoque(1L, 1);
-        assertThat(requisicoesPrimario(1L)).isEqualTo(3);
+        assertThat(requisicoesPrimario(1L)).isEqualTo(1);
     }
 
     @Test
@@ -113,40 +113,41 @@ class ProdutoResilienciaIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void DEFEITO_CONHECIDO_erro500DoPrimario_propagaExcecaoEFallbackNaoEhAcionado() {
-        // README promete fallback, mas o ProdutoFeignClientFallback NÃO é chamado hoje.
-        // Se o fallback for corrigido, trocar para: produto presente e requisicoesFallback >= 1.
+    void erro500DoPrimario_acionaFallbackComSucesso() {
         produtosApi.stubFor(get(urlEqualTo("/api/produtos/1")).willReturn(aResponse().withStatus(500)));
         stubFallbackDisponivel();
 
-        org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
-                () -> produtoService.buscarProdutoPorId(1L));
+        Optional<ProdutoDTO> produto = produtoService.buscarProdutoPorId(1L);
 
-        assertThat(requisicoesFallback(1L)).isZero();
+        assertThat(produto).isPresent();
+        assertThat(produto.get().nome()).isEqualTo("Do Fallback");
+        assertThat(requisicoesFallback(1L)).isGreaterThanOrEqualTo(1);
     }
 
     @Test
-    void DEFEITO_CONHECIDO_conexaoResetada_propagaExcecaoEFallbackNaoEhAcionado() {
+    void conexaoResetada_acionaFallbackComSucesso() {
         produtosApi.stubFor(get(urlEqualTo("/api/produtos/1"))
                 .willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER)));
         stubFallbackDisponivel();
 
-        org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
-                () -> produtoService.buscarProdutoPorId(1L));
+        Optional<ProdutoDTO> produto = produtoService.buscarProdutoPorId(1L);
 
-        assertThat(requisicoesFallback(1L)).isZero();
+        assertThat(produto).isPresent();
+        assertThat(produto.get().nome()).isEqualTo("Do Fallback");
+        assertThat(requisicoesFallback(1L)).isGreaterThanOrEqualTo(1);
     }
 
     @Test
-    void DEFEITO_CONHECIDO_timeoutDoPrimario_propagaExcecaoEFallbackNaoEhAcionado() {
+    void timeoutDoPrimario_acionaFallbackComSucesso() {
         produtosApi.stubFor(get(urlEqualTo("/api/produtos/1"))
                 .willReturn(aResponse().withFixedDelay(3000).withStatus(200)));
         stubFallbackDisponivel();
 
-        org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
-                () -> produtoService.buscarProdutoPorId(1L));
+        Optional<ProdutoDTO> produto = produtoService.buscarProdutoPorId(1L);
 
-        assertThat(requisicoesFallback(1L)).isZero();
+        assertThat(produto).isPresent();
+        assertThat(produto.get().nome()).isEqualTo("Do Fallback");
+        assertThat(requisicoesFallback(1L)).isGreaterThanOrEqualTo(1);
     }
 
 

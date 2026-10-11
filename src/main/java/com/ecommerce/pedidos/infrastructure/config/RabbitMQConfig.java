@@ -20,6 +20,7 @@ public class RabbitMQConfig {
     
     // Queues
     public static final String PEDIDOS_CRIADOS_QUEUE = "pedidos.criados.queue";
+    public static final String PEDIDOS_CANCELADOS_QUEUE = "pedidos.cancelados.queue";
     public static final String PEDIDOS_DLQ = "pedidos.dlq";
     
     // Routing Keys
@@ -44,6 +45,17 @@ public class RabbitMQConfig {
                 .withArgument("x-dead-letter-routing-key", PEDIDOS_DLQ)
                 .build();
     }
+
+    /**
+     * Queue para pedidos cancelados
+     */
+    @Bean
+    public Queue pedidosCanceladosQueue() {
+        return QueueBuilder.durable(PEDIDOS_CANCELADOS_QUEUE)
+                .withArgument("x-dead-letter-exchange", "")
+                .withArgument("x-dead-letter-routing-key", PEDIDOS_DLQ)
+                .build();
+    }
     
     /**
      * Dead Letter Queue (DLQ)
@@ -62,6 +74,17 @@ public class RabbitMQConfig {
                 .bind(pedidosCriadosQueue)
                 .to(pedidosExchange)
                 .with(PEDIDO_CRIADO_ROUTING_KEY);
+    }
+
+    /**
+     * Binding entre exchange e queue de pedidos cancelados
+     */
+    @Bean
+    public Binding bindingPedidosCancelados(Queue pedidosCanceladosQueue, TopicExchange pedidosExchange) {
+        return BindingBuilder
+                .bind(pedidosCanceladosQueue)
+                .to(pedidosExchange)
+                .with(PEDIDO_CANCELADO_ROUTING_KEY);
     }
     
     /**

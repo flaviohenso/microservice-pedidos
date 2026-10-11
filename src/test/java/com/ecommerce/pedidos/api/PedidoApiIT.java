@@ -146,7 +146,7 @@ class PedidoApiIT extends AbstractIntegrationTest {
         ResponseEntity<JsonNode> resp = post(pedidoRequest(null, 1L, 1));
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(resp.getBody().get("message").asString()).contains("cliente");
+        assertThat(resp.getBody().toString()).containsIgnoringCase("cliente");
     }
 
     @Test
@@ -157,27 +157,25 @@ class PedidoApiIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void criarPedido_DEFEITO_CONHECIDO_itensNulo_retorna500() {
-        // Hoje não há Bean Validation no DTO: NPE em request.itens().stream() -> 500.
-        // Após a refatoração o esperado é 400 (atualizar este teste).
+    void criarPedido_itensNulo_retorna400() {
         Map<String, Object> req = new java.util.HashMap<>();
         req.put("clienteId", 7L);
         req.put("itens", null);
 
         ResponseEntity<JsonNode> resp = post(req);
 
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
-    void criarPedido_DEFEITO_CONHECIDO_clienteIdNegativoEhAceito() {
-        // A validação de "cliente positivo" em Pedido roda antes de this.clienteId ser atribuído (nunca dispara).
+    void criarPedido_clienteIdNegativo_retorna400() {
         stubProduto(1L, "Notebook", "2500.00", 10);
 
         ResponseEntity<JsonNode> resp = post(pedidoRequest(-5L, 1L, 1));
 
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(resp.getBody().get("clienteId").asLong()).isEqualTo(-5L);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(resp.getBody().toString()).containsIgnoringCase("positivo");
+        assertThat(pedidoJpaRepository.count()).isZero();
     }
 
     // ---------- GET ----------

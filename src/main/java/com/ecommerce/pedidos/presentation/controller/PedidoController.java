@@ -60,8 +60,11 @@ public class PedidoController {
             @Valid @RequestBody PedidoRequestDTO request) {
         
         // Converte itens do DTO para o formato esperado pelo use case
-        var itensRequest = request.itens().stream()
-        .map(item -> new ItemPedidoRequest(item.produtoId(), item.quantidade())).collect(Collectors.toList());
+        var itensRequest = request.itens() != null
+                ? request.itens().stream()
+                    .map(item -> new ItemPedidoRequest(item.produtoId(), item.quantidade()))
+                    .collect(Collectors.toList())
+                : List.<ItemPedidoRequest>of();
                 
         Pedido pedido = criarPedidoUseCase.executar(request.clienteId(), itensRequest);
         
