@@ -1,20 +1,20 @@
 package com.ecommerce.pedidos.application.usecase;
 
 import com.ecommerce.pedidos.application.dto.ItemPedidoRequest;
+import com.ecommerce.pedidos.application.dto.ProdutoDTO;
 import com.ecommerce.pedidos.application.event.ItemPedidoEvent;
 import com.ecommerce.pedidos.application.event.PedidoCriadoEvent;
 import com.ecommerce.pedidos.application.service.ProdutoServicePort;
+import com.ecommerce.pedidos.application.service.SalvarPedidoTransacionalPort;
 import com.ecommerce.pedidos.domain.entity.ItemPedido;
 import com.ecommerce.pedidos.domain.entity.OutboxEvent;
 import com.ecommerce.pedidos.domain.entity.Pedido;
 import com.ecommerce.pedidos.domain.exception.ProdutoIndisponivelException;
 import com.ecommerce.pedidos.domain.repository.OutboxRepositoryPort;
 import com.ecommerce.pedidos.domain.repository.PedidoRepositoryPort;
-import com.ecommerce.pedidos.infrastructure.client.dto.ProdutoDTO;
 import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +22,8 @@ import java.util.stream.Collectors;
 
 /**
  * Caso de Uso: Criar um novo pedido
- * Implementa o padrão Outbox para garantir consistência eventual
+ * Implementa o padrão Outbox para garantir consistência eventual.
+ * As chamadas de I/O externo são feitas fora de qualquer transação de banco de dados.
  */
 public class CriarPedidoUseCase {
     
@@ -30,18 +31,35 @@ public class CriarPedidoUseCase {
     
     private final PedidoRepositoryPort pedidoRepository;
     private final OutboxRepositoryPort outboxRepository;
+    private final SalvarPedidoTransacionalPort salvarPedidoTransacionalPort;
     private final ProdutoServicePort produtoService;
     private final ObjectMapper objectMapper;
     
     public CriarPedidoUseCase(
             PedidoRepositoryPort pedidoRepository,
             OutboxRepositoryPort outboxRepository,
+            SalvarPedidoTransacionalPort salvarPedidoTransacionalPort,
             ProdutoServicePort produtoService,
             ObjectMapper objectMapper) {
         this.pedidoRepository = pedidoRepository;
         this.outboxRepository = outboxRepository;
+        this.salvarPedidoTransacionalPort = salvarPedidoTransacionalPort != null
+                ? salvarPedidoTransacionalPort
+                : (pedido, eventFactory) -> {
+                    Pedido salvo = pedidoRepository.salvar(pedido);
+                    outboxRepository.salvar(eventFactory.apply(salvo));
+                    return salvo;
+                };
         this.produtoService = produtoService;
         this.objectMapper = objectMapper;
+    }
+
+    public CriarPedidoUseCase(
+            PedidoRepositoryPort pedidoRepository,
+            OutboxRepositoryPort outboxRepository,
+            ProdutoServicePort produtoService,
+            ObjectMapper objectMapper) {
+        this(pedidoRepository, outboxRepository, null, produtoService, objectMapper);
     }
     
     /**
@@ -51,22 +69,17 @@ public class CriarPedidoUseCase {
      * @param itensRequest Lista de itens (produtoId, quantidade)
      * @return Pedido criado
      */
-    @Transactional
     public Pedido executar(Long clienteId, List<ItemPedidoRequest> itensRequest) {
         logger.info("Iniciando criação de pedido para cliente {}", clienteId);
         
-        // 1. Validar e buscar produtos
+        // 1. Validar e buscar produtos (I/O externo, FORA de transação de banco)
         List<ItemPedido> itens = validarECriarItens(itensRequest);
         
-        // 2. Criar pedido
+        // 2. Criar pedido em memória
         Pedido pedido = new Pedido(clienteId, itens);
         
-        // 3. Salvar pedido no banco (transação)
-        Pedido pedidoSalvo = pedidoRepository.salvar(pedido);
-        logger.info("Pedido {} criado com sucesso", pedidoSalvo.getNumeroPedido());
-        
-        // 4. Criar evento na tabela Outbox (mesma transação)
-        criarEventoOutbox(pedidoSalvo);
+        // 3. Salvar pedido no banco e registrar Outbox atomicamente (transação de banco curta)
+        Pedido pedidoSalvo = salvarPedidoTransacionalPort.salvar(pedido, this::gerarEventoOutbox);
         
         logger.info("Pedido {} criado e evento registrado na Outbox", pedidoSalvo.getNumeroPedido());
         
@@ -108,7 +121,7 @@ public class CriarPedidoUseCase {
     /**
      * Cria evento na tabela Outbox
      */
-    private void criarEventoOutbox(Pedido pedido) {
+    private OutboxEvent gerarEventoOutbox(Pedido pedido) {
         try {
             // Cria evento de domínio
             PedidoCriadoEvent event = new PedidoCriadoEvent(
@@ -125,16 +138,12 @@ public class CriarPedidoUseCase {
             String payload = objectMapper.writeValueAsString(event);
             
             // Cria registro na Outbox
-            OutboxEvent outboxEvent = new OutboxEvent(
+            return new OutboxEvent(
                     "PEDIDO",
                     pedido.getId(),
                     "PEDIDO_CRIADO",
                     payload
             );
-            
-            outboxRepository.salvar(outboxEvent);
-            
-            logger.debug("Evento PEDIDO_CRIADO registrado na Outbox para pedido {}", pedido.getId());
             
         } catch (Exception e) {
             logger.error("Erro ao criar evento Outbox: {}", e.getMessage(), e);

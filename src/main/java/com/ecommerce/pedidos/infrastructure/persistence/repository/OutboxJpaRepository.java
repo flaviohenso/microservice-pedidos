@@ -23,6 +23,11 @@ public interface OutboxJpaRepository extends JpaRepository<OutboxJpaEntity, Long
      * Busca eventos pendentes com limite (paginação)
      */
     List<OutboxJpaEntity> findByStatusOrderByCreatedAtAsc(OutboxStatus status, Pageable pageable);
+
+    /**
+     * Busca eventos por ID do agregado
+     */
+    List<OutboxJpaEntity> findByAggregateId(Long aggregateId);
 }
 
 

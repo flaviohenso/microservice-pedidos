@@ -1,7 +1,7 @@
 package com.ecommerce.pedidos.infrastructure.client;
 
+import com.ecommerce.pedidos.application.dto.ProdutoDTO;
 import com.ecommerce.pedidos.application.service.ProdutoServicePort;
-import com.ecommerce.pedidos.infrastructure.client.dto.ProdutoDTO;
 
 import feign.FeignException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;

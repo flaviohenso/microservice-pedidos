@@ -6,7 +6,7 @@ import com.ecommerce.pedidos.domain.entity.Pedido;
 import com.ecommerce.pedidos.domain.exception.ProdutoIndisponivelException;
 import com.ecommerce.pedidos.domain.repository.OutboxRepositoryPort;
 import com.ecommerce.pedidos.domain.repository.PedidoRepositoryPort;
-import com.ecommerce.pedidos.infrastructure.client.dto.ProdutoDTO;
+import com.ecommerce.pedidos.application.dto.ProdutoDTO;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.BeforeEach;

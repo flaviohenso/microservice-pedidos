@@ -1,6 +1,6 @@
 package com.ecommerce.pedidos.infrastructure.client;
 
-import com.ecommerce.pedidos.infrastructure.client.dto.ProdutoDTO;
+import com.ecommerce.pedidos.application.dto.ProdutoDTO;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

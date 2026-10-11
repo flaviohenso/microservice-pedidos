@@ -34,9 +34,16 @@ public class BeanConfiguration {
     public CriarPedidoUseCase criarPedidoUseCase(
             PedidoRepositoryPort pedidoRepository,
             OutboxRepositoryPort outboxRepository,
+            com.ecommerce.pedidos.application.service.SalvarPedidoTransacionalPort salvarPedidoTransacionalPort,
             ProdutoServicePort produtoService,
             ObjectMapper objectMapper) {
-        return new CriarPedidoUseCase(pedidoRepository, outboxRepository, produtoService, objectMapper);
+        return new CriarPedidoUseCase(
+                pedidoRepository,
+                outboxRepository,
+                salvarPedidoTransacionalPort,
+                produtoService,
+                objectMapper
+        );
     }
     
     /**

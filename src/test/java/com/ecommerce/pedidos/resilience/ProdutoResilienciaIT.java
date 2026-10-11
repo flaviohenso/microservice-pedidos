@@ -1,7 +1,7 @@
 package com.ecommerce.pedidos.resilience;
 
 import com.ecommerce.pedidos.application.service.ProdutoServicePort;
-import com.ecommerce.pedidos.infrastructure.client.dto.ProdutoDTO;
+import com.ecommerce.pedidos.application.dto.ProdutoDTO;
 import com.ecommerce.pedidos.support.AbstractIntegrationTest;
 import com.github.tomakehurst.wiremock.http.Fault;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
