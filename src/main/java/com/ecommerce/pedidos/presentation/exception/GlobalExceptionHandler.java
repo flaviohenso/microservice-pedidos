@@ -56,13 +56,13 @@ public class GlobalExceptionHandler {
         
         ErrorResponse error = new ErrorResponse(
                 LocalDateTime.now(),
-                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                HttpStatus.UNPROCESSABLE_CONTENT.value(),
                 "Unprocessable Entity",
                 ex.getMessage(),
                 request.getDescription(false).replace("uri=", "")
         );
         
-        return new ResponseEntity<>(error, HttpStatus.UNPROCESSABLE_ENTITY);
+        return new ResponseEntity<>(error, HttpStatus.UNPROCESSABLE_CONTENT);
     }
     
     /**

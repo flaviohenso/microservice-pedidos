@@ -7,8 +7,8 @@ import com.ecommerce.pedidos.application.usecase.CriarPedidoUseCase;
 import com.ecommerce.pedidos.application.usecase.ListarPedidosUseCase;
 import com.ecommerce.pedidos.domain.repository.OutboxRepositoryPort;
 import com.ecommerce.pedidos.domain.repository.PedidoRepositoryPort;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -20,13 +20,11 @@ import org.springframework.context.annotation.Configuration;
 public class BeanConfiguration {
     
     /**
-     * Bean para ObjectMapper (serialização/desserialização JSON)
+     * Bean para ObjectMapper (serialização/desserialização JSON Jackson 3)
      */
     @Bean
     public ObjectMapper objectMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new JavaTimeModule());
-        return mapper;
+        return JsonMapper.builder().build();
     }
     
     /**

@@ -11,7 +11,7 @@ import com.ecommerce.pedidos.domain.exception.ProdutoIndisponivelException;
 import com.ecommerce.pedidos.domain.repository.OutboxRepositoryPort;
 import com.ecommerce.pedidos.domain.repository.PedidoRepositoryPort;
 import com.ecommerce.pedidos.infrastructure.client.dto.ProdutoDTO;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
