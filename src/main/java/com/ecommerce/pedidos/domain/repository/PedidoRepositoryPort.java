@@ -30,6 +30,11 @@ public interface PedidoRepositoryPort {
      * Lista todos os pedidos
      */
     List<Pedido> listarTodos();
+
+    /**
+     * Lista pedidos de forma paginada
+     */
+    List<Pedido> listarPaginado(int pagina, int tamanho);
     
     /**
      * Lista pedidos de um cliente específico

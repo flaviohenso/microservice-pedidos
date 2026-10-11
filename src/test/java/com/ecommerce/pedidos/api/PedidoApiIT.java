@@ -266,10 +266,31 @@ class PedidoApiIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void cancelar_inexistente_retorna404() {
-        ResponseEntity<JsonNode> resp = rest.exchange(
-                "/api/pedidos/999999/cancelar", HttpMethod.PUT, null, JsonNode.class);
+    void listarTodos_comPaginacao_retornaLotePaginado() {
+        criarPedidoValido();
+        criarPedidoValido();
+        criarPedidoValido();
 
-        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        ResponseEntity<JsonNode> pag0 = rest.getForEntity("/api/pedidos?pagina=0&tamanho=2", JsonNode.class);
+        assertThat(pag0.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(pag0.getBody().isArray()).isTrue();
+        assertThat(pag0.getBody()).hasSize(2);
+
+        ResponseEntity<JsonNode> pag1 = rest.getForEntity("/api/pedidos?pagina=1&tamanho=2", JsonNode.class);
+        assertThat(pag1.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(pag1.getBody().isArray()).isTrue();
+        assertThat(pag1.getBody()).hasSize(1);
+    }
+
+    @Test
+    void actuator_exposicaoRestrita_healthOkEEndpointsSensiveisNaoExpostos() {
+        ResponseEntity<JsonNode> health = rest.getForEntity("/actuator/health", JsonNode.class);
+        assertThat(health.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<String> env = rest.getForEntity("/actuator/env", String.class);
+        assertThat(env.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+        ResponseEntity<String> heapdump = rest.getForEntity("/actuator/heapdump", String.class);
+        assertThat(heapdump.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

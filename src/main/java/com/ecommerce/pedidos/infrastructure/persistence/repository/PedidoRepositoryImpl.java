@@ -46,6 +46,16 @@ public class PedidoRepositoryImpl implements PedidoRepositoryPort {
                 .map(PedidoMapper::toDomain)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public List<Pedido> listarPaginado(int pagina, int tamanho) {
+        var pageable = org.springframework.data.domain.PageRequest.of(
+                pagina, tamanho, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "dataCriacao")
+        );
+        return jpaRepository.findAll(pageable).stream()
+                .map(PedidoMapper::toDomain)
+                .collect(Collectors.toList());
+    }
     
     @Override
     public List<Pedido> listarPorClienteId(Long clienteId) {

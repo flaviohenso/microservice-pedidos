@@ -26,7 +26,17 @@ public class ListarPedidosUseCase {
      * @return Lista de pedidos
      */
     public List<Pedido> executar() {
-        logger.debug("Listando todos os pedidos");
+        return executar(null, null);
+    }
+
+    /**
+     * Executa a listagem paginada de pedidos
+     */
+    public List<Pedido> executar(Integer pagina, Integer tamanho) {
+        logger.debug("Listando pedidos com paginação: pagina={}, tamanho={}", pagina, tamanho);
+        if (pagina != null && tamanho != null) {
+            return pedidoRepository.listarPaginado(pagina, tamanho);
+        }
         return pedidoRepository.listarTodos();
     }
     

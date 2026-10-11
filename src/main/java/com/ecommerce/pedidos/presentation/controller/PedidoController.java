@@ -94,8 +94,12 @@ public class PedidoController {
             @ApiResponse(responseCode = "200", description = "Lista de pedidos retornada com sucesso")
     })
     @GetMapping
-    public ResponseEntity<List<PedidoResponseDTO>> listarTodosPedidos() {
-        List<Pedido> pedidos = listarPedidosUseCase.executar();
+    public ResponseEntity<List<PedidoResponseDTO>> listarTodosPedidos(
+            @Parameter(description = "Número da página (0-based)") @RequestParam(name = "pagina", required = false) Integer pagina,
+            @Parameter(description = "Tamanho da página") @RequestParam(name = "tamanho", required = false) Integer tamanho) {
+        List<Pedido> pedidos = (pagina != null && tamanho != null)
+                ? listarPedidosUseCase.executar(pagina, tamanho)
+                : listarPedidosUseCase.executar();
         
         List<PedidoResponseDTO> response = pedidos.stream()
                 .map(PedidoDTOMapper::toResponseDTO)

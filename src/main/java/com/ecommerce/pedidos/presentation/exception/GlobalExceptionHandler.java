@@ -46,6 +46,26 @@ public class GlobalExceptionHandler {
     }
     
     /**
+     * Trata exceção de recurso não encontrado (ex: rotas inexistentes)
+     */
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFoundException(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex, WebRequest request) {
+        
+        logger.warn("Recurso não encontrado: {}", ex.getMessage());
+        
+        ErrorResponse error = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.NOT_FOUND.value(),
+                "Not Found",
+                ex.getMessage(),
+                request.getDescription(false).replace("uri=", "")
+        );
+        
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    /**
      * Trata exceção de produto indisponível
      */
     @ExceptionHandler(ProdutoIndisponivelException.class)
