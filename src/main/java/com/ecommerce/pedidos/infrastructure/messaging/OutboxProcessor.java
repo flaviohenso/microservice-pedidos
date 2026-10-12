@@ -27,16 +27,19 @@ public class OutboxProcessor {
     private final EventPublisherPort eventPublisher;
     private final int maxRetries;
     private final int batchSize;
+    private final int retentionDays;
     
     public OutboxProcessor(
             OutboxRepositoryPort outboxRepository,
             EventPublisherPort eventPublisher,
             @Value("${outbox.processor.max-retries:3}") int maxRetries,
-            @Value("${outbox.processor.batch-size:100}") int batchSize) {
+            @Value("${outbox.processor.batch-size:100}") int batchSize,
+            @Value("${outbox.processor.retention-days:7}") int retentionDays) {
         this.outboxRepository = outboxRepository;
         this.eventPublisher = eventPublisher;
         this.maxRetries = maxRetries;
         this.batchSize = batchSize;
+        this.retentionDays = retentionDays;
     }
     
     /**
@@ -138,16 +141,13 @@ public class OutboxProcessor {
     @Transactional
     public void limparEventosProcessados() {
         try {
-            logger.info("Iniciando limpeza de eventos processados da Outbox");
+            logger.info("Iniciando limpeza de eventos processados da Outbox (retenção: {} dias)", retentionDays);
             
-            // Busca eventos processados com mais de 7 dias
-            List<OutboxEvent> eventosProcessados = outboxRepository.buscarPorStatus(OutboxStatus.PROCESSED);
+            java.time.LocalDateTime dataLimite = java.time.LocalDateTime.now().minusDays(retentionDays);
+            int totalRemovidos = outboxRepository.deletarProcessadosAntesDe(dataLimite);
             
-            // Aqui você pode implementar lógica de remoção se desejar
-            // Por exemplo: deletar eventos com mais de X dias
-            
-            logger.info("Limpeza de Outbox concluída. Total de eventos processados: {}", 
-                    eventosProcessados.size());
+            logger.info("Limpeza de Outbox concluída. Total de eventos processados removidos: {}", 
+                    totalRemovidos);
             
         } catch (Exception e) {
             logger.error("Erro ao limpar eventos processados: {}", e.getMessage(), e);

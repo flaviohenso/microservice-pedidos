@@ -50,4 +50,9 @@ spring-boot-*.log
 
 .history*
 
+# Environment files
+.env
+.env.local
+*.env
+
 

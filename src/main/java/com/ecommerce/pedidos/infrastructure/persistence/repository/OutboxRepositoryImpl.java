@@ -38,8 +38,7 @@ public class OutboxRepositoryImpl implements OutboxRepositoryPort {
     
     @Override
     public List<OutboxEvent> buscarPendentesPaginado(int limite) {
-        var pageable = PageRequest.of(0, limite);
-        return jpaRepository.findByStatusOrderByCreatedAtAsc(OutboxStatus.PENDING, pageable).stream()
+        return jpaRepository.findByStatusOrderByCreatedAtAscSkipLocked(OutboxStatus.PENDING.name(), limite).stream()
                 .map(OutboxMapper::toDomain)
                 .collect(Collectors.toList());
     }
@@ -49,6 +48,11 @@ public class OutboxRepositoryImpl implements OutboxRepositoryPort {
         var jpaEntity = OutboxMapper.toJpaEntity(event);
         var updatedEntity = jpaRepository.save(jpaEntity);
         return OutboxMapper.toDomain(updatedEntity);
+    }
+
+    @Override
+    public int deletarProcessadosAntesDe(java.time.LocalDateTime dataLimite) {
+        return jpaRepository.deleteByStatusAndProcessedAtBefore(OutboxStatus.PROCESSED, dataLimite);
     }
 }
 

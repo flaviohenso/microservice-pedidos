@@ -112,15 +112,16 @@ public class PedidoJpaEntity {
         this.dataAtualizacao = dataAtualizacao;
     }
 
+    @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        PedidoJpaEntity other = (PedidoJpaEntity) obj;
-        return Objects.equals(id, other.id) && Objects.equals(numeroPedido, other.numeroPedido) && Objects.equals(clienteId, other.clienteId) && Objects.equals(itens, other.itens) && Objects.equals(status, other.status) && Objects.equals(dataCriacao, other.dataCriacao) && Objects.equals(dataAtualizacao, other.dataAtualizacao);
+        if (!(obj instanceof PedidoJpaEntity other)) return false;
+        return numeroPedido != null && Objects.equals(numeroPedido, other.numeroPedido);
     }
 
+    @Override
     public int hashCode() {
-        return Objects.hash(id, numeroPedido, clienteId, itens, status, dataCriacao, dataAtualizacao);
+        return getClass().hashCode();
     }
 }
 

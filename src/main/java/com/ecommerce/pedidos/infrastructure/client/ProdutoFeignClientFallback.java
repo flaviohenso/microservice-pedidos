@@ -1,10 +1,11 @@
 package com.ecommerce.pedidos.infrastructure.client;
 
-import com.ecommerce.pedidos.infrastructure.client.dto.ProdutoDTO;
+import com.ecommerce.pedidos.application.dto.ProdutoDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 @Component
@@ -26,6 +27,11 @@ public class ProdutoFeignClientFallback implements ProdutoFeignClient {
     public ProdutoDTO buscarPorId(Long id) {
         logger.warn("FALLBACK ativado para produto {}", id);
         String url = fallbackServiceUrl + "/" + id;
-        return restTemplate.getForObject(url, ProdutoDTO.class);
+        try {
+            return restTemplate.getForObject(url, ProdutoDTO.class);
+        } catch (HttpClientErrorException.NotFound e) {
+            logger.warn("Produto {} não encontrado no serviço de fallback", id);
+            return null;
+        }
     }
 }

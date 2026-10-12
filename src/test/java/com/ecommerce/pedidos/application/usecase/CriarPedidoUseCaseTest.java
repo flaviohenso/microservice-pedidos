@@ -6,9 +6,9 @@ import com.ecommerce.pedidos.domain.entity.Pedido;
 import com.ecommerce.pedidos.domain.exception.ProdutoIndisponivelException;
 import com.ecommerce.pedidos.domain.repository.OutboxRepositoryPort;
 import com.ecommerce.pedidos.domain.repository.PedidoRepositoryPort;
-import com.ecommerce.pedidos.infrastructure.client.dto.ProdutoDTO;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule; 
+import com.ecommerce.pedidos.application.dto.ProdutoDTO;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,8 +40,7 @@ class CriarPedidoUseCaseTest {
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule()); 
+        objectMapper = JsonMapper.builder().build();
         useCase = new CriarPedidoUseCase(pedidoRepository, outboxRepository, produtoService, objectMapper);
     }
 

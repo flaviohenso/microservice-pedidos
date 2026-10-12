@@ -1,6 +1,6 @@
 package com.ecommerce.pedidos.application.service;
 
-import com.ecommerce.pedidos.infrastructure.client.dto.ProdutoDTO;
+import com.ecommerce.pedidos.application.dto.ProdutoDTO;
 
 import java.util.Optional;
 

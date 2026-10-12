@@ -1,109 +1,108 @@
 # Microserviço de Pedidos
 
-Microserviço de realização de pedidos para e-commerce, desenvolvido seguindo **Clean Architecture/Hexagonal Architecture** com **padrão Outbox** para garantir consistência eventual e **Virtual Threads** para alta escalabilidade.
+Microserviço de realização e gerenciamento de pedidos para e-commerce, desenvolvido com **Java 21**, **Spring Boot 4.0.8**, seguindo os princípios de **Clean Architecture / Arquitetura Hexagonal**, **Transactional Outbox Pattern** com concorrência segura (`SKIP LOCKED`) para garantia de consistência eventual, e **Virtual Threads** para alta escalabilidade.
+
+---
 
 ## 📋 Índice
 
-- [Visão Geral](#visão-geral)
-- [Tecnologias](#tecnologias)
-- [Arquitetura](#arquitetura)
-- [Diagrama de Sequência](#diagrama-de-sequência)
-- [Resiliência](#resiliência)
-- [Padrões Implementados](#padrões-implementados)
-- [Como Executar](#como-executar)
-- [Endpoints da API](#endpoints-da-api)
-- [Trade-offs e Decisões Arquiteturais](#trade-offs-e-decisões-arquiteturais)
-- [Estrutura do Projeto](#estrutura-do-projeto)
-- [Testes](#testes)
+- [Visão Geral](#-visão-geral)
+- [Tecnologias](#-tecnologias)
+- [Arquitetura Hexagonal](#️-arquitetura-hexagonal)
+- [Diagrama de Sequência & Virtual Threads](#-diagrama-de-sequência--virtual-threads)
+- [Resiliência & Tolerância a Falhas](#-resiliência--tolerância-a-falhas)
+- [Padrões e Diferenciais Implementados](#-padrões-e-diferenciais-implementados)
+- [Banco de Dados & Migrações (Flyway)](#-banco-de-dados--migrações-flyway)
+- [Como Executar](#-como-executar)
+- [Endpoints da API](#-endpoints-da-api)
+- [Monitoramento & Actuator](#-monitoramento--actuator)
+- [Trade-offs e Decisões Arquiteturais](#-trade-offs-e-decisões-arquiteturais)
+- [Estrutura do Projeto](#-estrutura-do-projeto)
+- [Testes Automatizados](#-testes-automatizados)
+
+---
 
 ## 🎯 Visão Geral
 
-O microserviço de pedidos é responsável por:
-- Criar e gerenciar pedidos de clientes
-- Validar disponibilidade de produtos (integração REST com microservice-produtos via **Feign Client**)
-- Publicar eventos de pedidos via RabbitMQ (padrão Outbox)
-- Garantir consistência eventual entre persistência e mensageria
-- Alta disponibilidade com **Circuit Breaker**, **Retry** e **Fallback**
+O microserviço de pedidos é o núcleo do processamento de compras da plataforma, responsável por:
+- Criar, consultar e cancelar pedidos de clientes com validação estrita de dados e regras de negócio.
+- Validar disponibilidade de catálogo e estoque de forma resiliente junto ao `microservice-produtos` via **OpenFeign 5** com **Circuit Breaker**, **Retry**, **Cache** e **Fallback**.
+- Garantir que chamadas de rede externas e I/O bloqueante ocorram **fora de transações de banco de dados**, liberando conexões do pool Hikari imediatamente.
+- Publicar eventos de domínio (`pedido.criado`, `pedido.cancelado`) via RabbitMQ através de **Transactional Outbox** com concorrência distribuída multi-instância (`FOR UPDATE SKIP LOCKED`) e expurgo periódico configurável.
+- Evolução de esquema controlada e versionada por **Flyway**, validada rigorosamente pelo Hibernate (`ddl-auto=validate`).
+
+---
 
 ## 🚀 Tecnologias
 
-- **Java 21** (com Virtual Threads habilitado)
-- **Spring Boot 3.3.1**
+- **Linguagem & Runtime**: [Java 21](https://openjdk.org/projects/jdk/21/) (com Virtual Threads ativado)
+- **Framework Principal**: [Spring Boot 4.0.8](https://spring.io/projects/spring-boot) / Spring Framework 7
   - Spring Web (MVC)
-  - Spring Data JPA
-  - Spring AMQP (RabbitMQ)
+  - Spring Data JPA / Hibernate 7
+  - Spring AMQP 4 (RabbitMQ)
   - Spring Cache (Caffeine)
-  - Spring Validation
-  - Spring Cloud OpenFeign
-- **Resilience4j** - Circuit Breaker, Retry, Rate Limiter
-- **PostgreSQL 15** - Banco de dados principal
-- **RabbitMQ 3** - Sistema de mensageria
-- **Maven** - Gerenciamento de dependências
-- **Lombok** - Redução de boilerplate
-- **SpringDoc OpenAPI** - Documentação Swagger
-- **JaCoCo** - Cobertura de testes
-- **Docker & Docker Compose** - Containerização
+  - Spring Validation (Jakarta Validation)
+  - Spring Cloud 2025 (OpenFeign 5.0.3 & CircuitBreaker Resilience4j 5.0.3)
+- **Serialização JSON**: [Jackson 3](https://github.com/FasterXML/jackson) (`tools.jackson`)
+- **Resiliência**: [Resilience4j 2.4.0](https://resilience4j.readme.io/) (Circuit Breaker, Retry, TimeLimiter)
+- **Banco de Dados**: [PostgreSQL 16](https://www.postgresql.org/)
+- **Migrações de Banco**: [Flyway 11](https://flywaydb.org/) (`spring-boot-starter-flyway`)
+- **Mensageria**: [RabbitMQ 3.13+](https://www.rabbitmq.com/) (com Dead Letter Queue e filas dedicadas)
+- **Documentação de API**: [SpringDoc OpenAPI 3.0](https://springdoc.org/) (Swagger UI)
+- **Testes & Infraestrutura de Teste**:
+  - JUnit 5 & AssertJ
+  - [Testcontainers 2.0.5](https://testcontainers.com/) (PostgreSQL & RabbitMQ gerenciados via `@ServiceConnection`)
+  - [WireMock](https://wiremock.org/) para isolamento de chamadas HTTP externas
+  - JaCoCo para cobertura de código
 
-## 🏗️ Arquitetura
+---
 
-Este microserviço segue os princípios de **Clean Architecture (Arquitetura Hexagonal)**, garantindo separação de responsabilidades e independência de frameworks.
+## 🏗️ Arquitetura Hexagonal
 
-> 📄 **Diagramas para impressão disponíveis em:**
-> - [Arquitetura em Camadas (HTML)](docs/arquitetura-camadas.html)
-> - [Diagrama de Sequência (HTML)](docs/diagrama-sequencia.html)
-> - [Arquitetura de Resiliência (HTML)](docs/resiliencia.html)
-
-### Diagrama de Arquitetura em Camadas
+O projeto segue estritamente a **Clean Architecture (Portas e Adaptadores)**. As camadas internas de negócio (Domain e Application) possuem **zero dependências** de bibliotecas de infraestrutura, clientes HTTP, Spring AMQP ou anotações invasivas de persistência:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                            🌐 EXTERNAL SYSTEMS                                       │
+│                            🌐 EXTERNAL CLIENTS & BROKER                             │
 │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐                   │
 │  │   HTTP Client    │  │   PostgreSQL     │  │    RabbitMQ      │                   │
-│  │   (Swagger UI)   │  │   (Database)     │  │    (Message)     │                   │
+│  │   (Swagger UI)   │  │   (Database)     │  │    (Broker)      │                   │
 │  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘                   │
 └───────────┼─────────────────────┼─────────────────────┼──────────────────────────────┘
             │                     │                     │
             ▼                     ▼                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                         📦 PRESENTATION LAYER                                        │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐    │
-│  │ Controllers: PedidoController, ResilienceHealthController                   │    │
-│  │ DTOs: PedidoRequestDTO, PedidoResponseDTO, ItemPedidoDTO                   │    │
-│  │ Exception Handler: GlobalExceptionHandler                                   │    │
-│  │ Mapper: PedidoDTOMapper                                                     │    │
-│  └─────────────────────────────────────────────────────────────────────────────┘    │
+│  Controllers: PedidoController, ResilienceHealthController                          │
+│  DTOs: PedidoRequestDTO, PedidoResponseDTO, ItemPedidoDTO                           │
+│  Exception Handling: GlobalExceptionHandler                                         │
+│  Mapper: PedidoDTOMapper                                                            │
 └───────────────────────────────────────┬─────────────────────────────────────────────┘
-                                        │ chama Use Cases
+                                        │ invoca Use Cases
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                          ⚙️ APPLICATION LAYER                                        │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐    │
-│  │ Use Cases: CriarPedidoUseCase, BuscarPedidoPorIdUseCase,                   │    │
-│  │            CancelarPedidoUseCase, ListarPedidosUseCase                     │    │
-│  │ Ports: ProdutoServicePort, EventPublisherPort                              │    │
-│  │ Events: PedidoCriadoEvent, ItemPedidoEvent                                 │    │
-│  └─────────────────────────────────────────────────────────────────────────────┘    │
+│  Use Cases: CriarPedidoUseCase, BuscarPedidoPorIdUseCase,                           │
+│             CancelarPedidoUseCase, ListarPedidosUseCase                             │
+│  Ports Out: ProdutoServicePort, EventPublisherPort, SalvarPedidoTransacionalPort    │
+│  DTOs de Aplicação: ProdutoDTO, ItemPedidoRequest                                   │
+│  Eventos de Aplicação: PedidoCriadoEvent, ItemPedidoEvent                           │
 └───────────────────────────────────────┬─────────────────────────────────────────────┘
-                                        │ usa entidades e ports do domain
+                                        │ usa entidades e regras de domínio
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                           🎯 DOMAIN LAYER (Core)                                     │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐    │
-│  │ Entities: Pedido, ItemPedido, OutboxEvent, StatusPedido, OutboxStatus      │    │
-│  │ Repository Ports: PedidoRepositoryPort, OutboxRepositoryPort               │    │
-│  │ Exceptions: PedidoNotFoundException, ProdutoIndisponivelException          │    │
-│  └─────────────────────────────────────────────────────────────────────────────┘    │
-└───────────────────────────────────────┬─────────────────────────────────────────────┘
-                                        ▲ implementa interfaces do domain
+│  Entities: Pedido, ItemPedido, OutboxEvent, StatusPedido, OutboxStatus              │
+│  Ports: PedidoRepositoryPort, OutboxRepositoryPort                                  │
+│  Exceptions: PedidoNotFoundException, ProdutoIndisponivelException                  │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+                                        ▲ implementa interfaces (Ports)
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                        🔧 INFRASTRUCTURE LAYER                                       │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐    │
-│  │ Persistence: PedidoRepositoryImpl, OutboxRepositoryImpl, JPA Entities      │    │
-│  │ External Clients: ProdutoFeignClient, ProdutoServiceAdapter                │    │
-│  │ Messaging: RabbitMQPublisher, OutboxProcessor                              │    │
-│  │ Config: BeanConfiguration, CacheConfig, RabbitMQConfig, OpenApiConfig      │    │
-│  └─────────────────────────────────────────────────────────────────────────────┘    │
+│  Persistence: PedidoRepositoryImpl, OutboxRepositoryImpl, SalvarPedidoTransacional  │
+│  Client HTTP: ProdutoFeignClient, ProdutoFeignClientFallback, ProdutoServiceAdapter  │
+│  Mensageria: RabbitMQPublisher, OutboxProcessor (@Scheduled)                        │
+│  Config: BeanConfiguration, CacheConfig, RabbitMQConfig, Flyway, OpenApiConfig      │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -113,346 +112,144 @@ Este microserviço segue os princípios de **Clean Architecture (Arquitetura Hex
 Presentation ──────► Application ──────► Domain ◄────────── Infrastructure
 ```
 
-As camadas internas definem interfaces (Ports) e as camadas externas as implementam (Adapters).
+- **Domain**: Regras de negócio puras (cálculo de totais, validação de itens, transições de status).
+- **Application**: Orquestração dos casos de uso, fronteiras de transação atômica (`SalvarPedidoTransacionalPort`) e interfaces de portas de saída.
+- **Infrastructure**: Implementações JPA, clientes OpenFeign, listeners, publicadores RabbitMQ e migrações Flyway.
+- **Presentation**: Endpoints REST, tratamento de exceções global e documentação OpenAPI.
 
-### Resumo das Camadas
+---
 
-| Camada | Responsabilidade | Componentes Principais |
-|--------|------------------|------------------------|
-| **Presentation** | Entrada/Saída HTTP, validação, conversão DTOs | Controllers, DTOs, ExceptionHandler |
-| **Application** | Orquestração de casos de uso, lógica de aplicação | Use Cases, Ports, Events |
-| **Domain** | Regras de negócio, entidades, contratos | Entities, Repository Ports, Exceptions |
-| **Infrastructure** | Implementações técnicas, adaptadores externos | JPA, Feign Client, RabbitMQ, Configs |
+## 🔄 Diagrama de Sequência & Virtual Threads
 
-## 🔄 Diagrama de Sequência
+### Fluxo de Criação de Pedido com Isolamento de Transação
 
-### Fluxo: POST /api/pedidos (Criar Pedido) com Virtual Threads
+Uma das melhorias mais críticas da arquitetura foi a **remoção de I/O de rede de dentro de `@Transactional`**: a validação do produto ocorre fora de qualquer transação de banco. A transação só é aberta no momento de persistir o pedido e o evento na Outbox:
 
 ```
-┌──────────┐     ┌────────────┐     ┌─────────────────┐     ┌──────────────────┐     ┌───────────────────┐     ┌──────────────────┐     ┌─────────────┐
-│  Client  │     │   Tomcat   │     │ PedidoController│     │CriarPedidoUseCase│     │ProdutoServiceAdapt│     │ PedidoRepository │     │ Produtos API│
-│          │     │  (VThread) │     │                 │     │                  │     │     (Feign)       │     │                  │     │  (External) │
-└────┬─────┘     └─────┬──────┘     └───────┬─────────┘     └────────┬─────────┘     └─────────┬─────────┘     └────────┬─────────┘     └──────┬──────┘
-     │                 │                    │                        │                         │                        │                      │
-     │ POST /api/pedidos                    │                        │                         │                        │                      │
-     │────────────────►│                    │                        │                         │                        │                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │ ⚡ Cria Virtual Thread                      │                         │                        │                      │
-     │                 │────────────────────►                        │                         │                        │                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │ criarPedido(request)   │                         │                        │                      │
-     │                 │                    │───────────────────────►│                         │                        │                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │                        │ buscarProdutoPorId(id)  │                        │                      │
-     │                 │                    │                        │────────────────────────►│                        │                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │                        │                         │ 🔄 HTTP GET (I/O)      │                      │
-     │                 │                    │                        │                         │───────────────────────────────────────────────►
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │                        │    ┌────────────────────┤                        │                      │
-     │                 │                    │                        │    │ ⏸️ VThread SUSPENDE │                        │                      │
-     │                 │                    │                        │    │ Carrier thread     │                        │                      │
-     │                 │                    │                        │    │ liberada!          │                        │                      │
-     │                 │                    │                        │    └────────────────────┤                        │                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │                        │                         │◄──────────────────────────────────────────────│
-     │                 │                    │                        │                         │       ProdutoDTO       │                      │
-     │                 │                    │                        │    ┌────────────────────┤                        │                      │
-     │                 │                    │                        │    │ ▶️ VThread RETOMA   │                        │                      │
-     │                 │                    │                        │    └────────────────────┤                        │                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │                        │◄────────────────────────│                        │                      │
-     │                 │                    │                        │   Optional<ProdutoDTO>  │                        │                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │                        │ pedidoRepository.salvar(pedido)                  │                      │
-     │                 │                    │                        │────────────────────────────────────────────────►│                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │                        │    ┌──────────────────────────────────────────────┤                      │
-     │                 │                    │                        │    │ ⏸️ VThread SUSPENDE (aguardando DB - JDBC)   │                      │
-     │                 │                    │                        │    └──────────────────────────────────────────────┤                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │                        │                         │    ┌───────────────────┤                      │
-     │                 │                    │                        │                         │    │ INSERT pedido     │                      │
-     │                 │                    │                        │                         │    │ INSERT itens      │                      │
-     │                 │                    │                        │                         │    │ INSERT outbox     │                      │
-     │                 │                    │                        │                         │    └───────────────────┤                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │                        │    ┌──────────────────────────────────────────────┤                      │
-     │                 │                    │                        │    │ ▶️ VThread RETOMA                            │                      │
-     │                 │                    │                        │    └──────────────────────────────────────────────┤                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │                        │◄───────────────────────────────────────────────────                      │
-     │                 │                    │                        │       Pedido (salvo)    │                        │                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │                    │◄───────────────────────│                         │                        │                      │
-     │                 │                    │         Pedido         │                         │                        │                      │
-     │                 │                    │                        │                         │                        │                      │
-     │                 │◄───────────────────│                        │                         │                        │                      │
-     │                 │ ResponseEntity<DTO>│                        │                         │                        │                      │
-     │                 │                    │                        │                         │                        │                      │
-     │◄────────────────│                    │                        │                         │                        │                      │
-     │ HTTP 201 Created│                    │                        │                         │                        │                      │
-     │                 │                    │                        │                         │                        │                      │
+Client         Tomcat(VThread)   PedidoController   CriarPedidoUseCase   ProdutoServiceAdapter   SalvarPedidoTransacional   PostgreSQL
+  │                   │                  │                  │                      │                        │                   │
+  │ POST /api/pedidos │                  │                  │                      │                        │                   │
+  │──────────────────►│                  │                  │                      │                        │                   │
+  │                   │ criarPedido()    │                  │                      │                        │                   │
+  │                   │─────────────────►│                  │                      │                        │                   │
+  │                   │                  │ executar()       │                      │                        │                   │
+  │                   │                  │─────────────────►│                      │                        │                   │
+  │                   │                  │                  │ buscarProdutoPorId() │                        │                   │
+  │                   │                  │                  │─────────────────────►│ (I/O HTTP Externo)     │                   │
+  │                   │                  │                  │                      │ SEM TRANSAÇÃO DE BANCO │                   │
+  │                   │                  │                  │◄─────────────────────│                        │                   │
+  │                   │                  │                  │                      │                        │                   │
+  │                   │                  │                  │ salvarPedidoEEventoOutbox()                   │                   │
+  │                   │                  │                  │──────────────────────────────────────────────►│                   │
+  │                   │                  │                  │                      │                        │ ── BEGIN TX ────  │
+  │                   │                  │                  │                      │                        │ INSERT INTO pedido│
+  │                   │                  │                  │                      │                        │ INSERT INTO outbox│
+  │                   │                  │                  │                      │                        │ ── COMMIT TX ───  │
+  │                   │                  │                  │◄──────────────────────────────────────────────│                   │
+  │                   │                  │◄─────────────────│                      │                        │                   │
+  │                   │◄─────────────────│                  │                      │                        │                   │
+  │ HTTP 201 Created  │                  │                  │                      │                        │                   │
+  │◄──────────────────│                  │                  │                      │                        │                   │
 ```
 
-### Virtual Threads - Como Funciona
+### Virtual Threads (Java 21 Loom)
+Com `spring.threads.virtual.enabled=true`:
+1. Cada requisição HTTP roda em uma Virtual Thread leve.
+2. Durante bloqueios de I/O (espera de resposta HTTP ou chamadas JDBC), a Virtual Thread desassocia-se da Carrier Thread do SO, liberando-a para atender outras conexões.
+3. Garante altíssimo throughput concorrente com consumo mínimo de recursos.
 
-Com **Java 21 Virtual Threads** habilitado (`spring.threads.virtual.enabled=true`):
+---
 
-1. Cada requisição HTTP é processada em uma **Virtual Thread** (VThread)
-2. Quando há operação de I/O bloqueante (HTTP call, JDBC), a VThread **suspende**
-3. A **carrier thread** (thread do SO) é liberada para processar outras VThreads
-4. Quando o I/O completa, a VThread **retoma** em qualquer carrier disponível
+## 🛡️ Resiliência & Tolerância a Falhas
 
-**Resultado:** Milhares de requisições simultâneas com poucas threads do SO!
-
-## 🛡️ Resiliência
-
-O microserviço implementa múltiplos padrões de resiliência usando **Resilience4j**:
-
-### Arquitetura de Resiliência
+A integração com serviços externos (`microservice-produtos`) conta com múltiplos mecanismos de defesa gerenciados pelo **Resilience4j**:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         FLUXO DE RESILIÊNCIA                                 │
-│                                                                              │
-│  Request ──► Retry ──► Circuit Breaker ──► Cache ──► Feign Client ──► API   │
-│                │              │               │              │               │
-│                │              │               │              │               │
-│                ▼              ▼               ▼              ▼               │
-│           [3 tentativas] [CLOSED/OPEN]  [Caffeine]    [Fallback]            │
-│                              │                              │               │
-│                              └──────────────────────────────┘               │
-│                                         │                                    │
-│                                         ▼                                    │
-│                                    [Fallback Service]                        │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+Requisição ──► Cache Caffeine ──► Retry (3x) ──► Circuit Breaker ──► OpenFeign HTTP ──► microservice-produtos
+                     │                                   │                  │
+                     └─ Retorna se em cache              └─ Fallback se OPEN└─ Fallback em falha de conexão/timeout
 ```
 
-### 1. Retry (Tentativas Automáticas)
+1. **Cache Local (Caffeine)**: Consultas a produtos recentes são cacheadas em memória por 5 minutos, eliminando chamadas de rede desnecessárias.
+2. **Retry com Backoff Exponencial**: Até 3 tentativas automáticas para falhas temporárias de rede (`ConnectException`, `SocketTimeoutException`).
+3. **Circuit Breaker**: Janela deslizante de 10 chamadas. Se a taxa de erro atingir 50%, o circuito abre por 30s, rejeitando chamadas com desvio imediato para o fallback sem saturar o destino.
+4. **Fallback Transparente via Spring Cloud**: Caso o circuito esteja aberto ou ocorra indisponibilidade persistente, o `ProdutoFeignClientFallback` consulta uma rota alternativa ou degrada com segurança.
 
-Realiza múltiplas tentativas em caso de falha temporária.
+---
 
-**Configuração:**
-```properties
-resilience4j.retry.instances.produtoService.max-attempts=3
-resilience4j.retry.instances.produtoService.wait-duration=1s
-resilience4j.retry.instances.produtoService.enable-exponential-backoff=true
-resilience4j.retry.instances.produtoService.exponential-backoff-multiplier=2
-```
+## 🔧 Padrões e Diferenciais Implementados
 
-**Comportamento:**
-- **Tentativa 1:** Falha → aguarda 1s
-- **Tentativa 2:** Falha → aguarda 2s (exponential backoff)
-- **Tentativa 3:** Falha → Circuit Breaker/Fallback
+### 1. Transactional Outbox com `FOR UPDATE SKIP LOCKED`
+- A gravação do pedido e do evento de negócio na tabela `outbox` é atômica no banco de dados.
+- O `OutboxProcessor` executa periodicamente para publicar mensagens no RabbitMQ.
+- **Concorrência Segura Multi-Instância**: A busca de eventos pendentes utiliza `SELECT ... FOR UPDATE SKIP LOCKED` nativo do PostgreSQL. Múltiplos nós do microserviço em cluster consomem lotes disjuntos simultaneamente, eliminando riscos de deadlocks ou processamento duplicado.
+- **Expurgo Automático de Eventos Processados**: Limpeza periódica via job scheduled que descarta registros processados antigos com base na propriedade `outbox.processor.retention-days` (evitando crescimento indefinido da tabela).
 
-### 2. Circuit Breaker (Disjuntor)
+### 2. Validações e Tratamento de Erros Padronizado
+- Validação profunda com Jakarta Bean Validation (`@NotNull`, `@Positive`, `@NotEmpty`, `@Valid`) em todos os DTOs.
+- `clienteId <= 0` ou dados inconsistentes retornam `400 Bad Request`.
+- Rotas não encontradas e recursos estáticos ausentes disparam `NoResourceFoundException`, mapeada centralmente para `404 Not Found` no `GlobalExceptionHandler`.
+- Entidades JPA utilizam regras de `equals`/`hashCode` estritamente baseadas no identificador ou chave de negócio, prevenindo `StackOverflowError` e consultas desnecessárias a coleções.
 
-Protege o sistema de sobrecarga quando o serviço externo está indisponível.
+### 3. Topologia de Mensageria Completa
+- Exchange: `pedidos.exchange` (topic).
+- Fila `pedidos.criados.queue` com routing key `pedido.criado`.
+- Fila `pedidos.cancelados.queue` com routing key `pedido.cancelado`.
+- Dead Letter Exchange (`pedidos.dlx`) e Dead Letter Queue (`pedidos.dlq`) configuradas para mensagens não roteáveis ou rejeitadas.
 
-**Estados do Circuit Breaker:**
+---
 
-```
-     ┌─────────────┐
-     │   CLOSED    │ ◄── Estado normal
-     │ (Funcional) │     Requisições passam
-     └──────┬──────┘
-            │
-            │ Taxa de falha > 50%
-            ▼
-     ┌─────────────┐
-     │    OPEN     │ ◄── Serviço indisponível
-     │ (Bloqueado) │     Requisições rejeitadas
-     └──────┬──────┘     (vai direto pro Fallback)
-            │
-            │ Após 30 segundos
-            ▼
-     ┌─────────────┐
-     │ HALF-OPEN   │ ◄── Testando recuperação
-     │  (Teste)    │     Permite 3 requisições
-     └─────────────┘
-            │
-            ├── Sucesso → CLOSED
-            └── Falha → OPEN
-```
+## 🗄️ Banco de Dados & Migrações (Flyway)
 
-**Configuração:**
-```properties
-resilience4j.circuitbreaker.instances.produtoService.sliding-window-size=10
-resilience4j.circuitbreaker.instances.produtoService.failure-rate-threshold=50
-resilience4j.circuitbreaker.instances.produtoService.wait-duration-in-open-state=30s
-resilience4j.circuitbreaker.instances.produtoService.permitted-number-of-calls-in-half-open-state=3
-```
+O microserviço utiliza migrações versionadas pelo **Flyway**:
+- **Local das Migrações**: `src/main/resources/db/migration/`
+- **Arquivo Inicial**: `V1__init_schema.sql` (Criação de `pedidos`, `itens_pedido`, `outbox` e criação de índices otimizados em `cliente_id`, `status`, `pedido_id` e `produto_id`).
+- **Validação Estrita do Hibernate**: `spring.jpa.hibernate.ddl-auto=validate` — o Hibernate atua estritamente validando o esquema gerado pelas migrações, garantindo previsibilidade absoluta entre ambientes.
 
-### 3. Fallback (Serviço Alternativo)
-
-Quando todas as tentativas falham ou o Circuit Breaker está aberto, aciona o serviço de fallback.
-
-**Implementação:**
-```java
-@FeignClient(
-    name = "produto-service",
-    url = "${produto.service.url}",
-    fallback = ProdutoFeignClientFallback.class
-)
-public interface ProdutoFeignClient {
-    @GetMapping("/{id}")
-    ProdutoDTO buscarPorId(@PathVariable("id") Long id);
-}
-```
-
-**Fallback:**
-```java
-@Component
-public class ProdutoFeignClientFallback implements ProdutoFeignClient {
-    @Override
-    public ProdutoDTO buscarPorId(Long id) {
-        logger.warn("FALLBACK ativado para produto {}", id);
-        // Chama serviço alternativo ou retorna cache
-        return fallbackService.buscarPorId(id);
-    }
-}
-```
-
-### 4. Cache (Caffeine)
-
-Reduz latência e carga no serviço externo.
-
-**Configuração:**
-```properties
-spring.cache.type=caffeine
-spring.cache.cache-names=produtos
-spring.cache.caffeine.spec=expireAfterWrite=5m,maximumSize=100
-```
-
-**Uso:**
-```java
-@Cacheable(value = "produtos", key = "#id", unless = "#result == null")
-public Optional<ProdutoDTO> buscarProdutoPorId(Long id) {
-    return produtoFeignClient.buscarPorId(id);
-}
-```
-
-### Resumo da Resiliência
-
-| Mecanismo | Função | Quando Atua |
-|-----------|--------|-------------|
-| **Retry** | Tenta novamente | Falhas temporárias (timeout, conexão) |
-| **Circuit Breaker** | Bloqueia chamadas | Serviço degradado (>50% falhas) |
-| **Fallback** | Serviço alternativo | Todas tentativas falharam |
-| **Cache** | Reduz latência | Consultas repetidas |
-
-## 🔧 Padrões Implementados
-
-### 1. Outbox Pattern
-
-Garante consistência eventual entre banco de dados e mensageria:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      OUTBOX PATTERN                              │
-│                                                                  │
-│  1. Pedido criado ─────► 2. Evento salvo na Outbox (TX atômica) │
-│                                      │                           │
-│                                      ▼                           │
-│                          3. OutboxProcessor (Job @Scheduled)     │
-│                                      │                           │
-│                                      ▼                           │
-│                          4. Publica no RabbitMQ                  │
-│                                      │                           │
-│                                      ▼                           │
-│                          5. Marca como PROCESSED                 │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Vantagens:**
-- ✅ Garante que eventos não sejam perdidos (transação ACID)
-- ✅ Resiliência: retry automático em falhas do RabbitMQ
-- ✅ Desacoplamento entre persistência e mensageria
-
-### 2. Repository Pattern
-
-Abstração da camada de persistência através de portas (interfaces) no domínio e adaptadores (implementações) na infraestrutura.
-
-### 3. Feign Client
-
-Cliente HTTP declarativo para comunicação entre microserviços.
-
-```java
-@FeignClient(
-    name = "produto-service",
-    url = "${produto.service.url}",
-    fallback = ProdutoFeignClientFallback.class
-)
-public interface ProdutoFeignClient {
-    @GetMapping("/{id}")
-    ProdutoDTO buscarPorId(@PathVariable("id") Long id);
-}
-```
-
-### 4. Virtual Threads (Project Loom)
-
-Threads leves do Java 21 que permitem alta concorrência sem complexidade de código reativo.
-
-```properties
-spring.threads.virtual.enabled=true
-```
+---
 
 ## 📦 Como Executar
 
 ### Pré-requisitos
 - Docker e Docker Compose
-- Java 21 (opcional, se executar localmente)
-- Maven (opcional, se executar localmente)
+- Java 21 e Maven 3.9+ (caso queira compilar/executar localmente)
 
-### Executar com Docker Compose
+### 1. Executar com Docker Compose (Completo)
 
 ```bash
 # Clone o repositório
-cd /home/flavio/Projetos
 git clone https://github.com/flaviohenso/microservice-pedidos.git
 cd microservice-pedidos
 
-# Suba todos os serviços
+# Suba a infraestrutura completa (PostgreSQL, RabbitMQ, Produtos e Pedidos)
 docker-compose up -d
 
-# Verifique os logs
+# Acompanhe os logs
 docker-compose logs -f microservice-pedidos
 ```
 
-### Serviços Disponíveis
-
-| Serviço | URL | Descrição |
-|---------|-----|-----------|
-| Microservice Pedidos | http://localhost:8081 | API de pedidos |
-| Microservice Produtos | http://localhost:8080 | API de produtos |
-| PostgreSQL | localhost:5432 | Banco de dados |
-| RabbitMQ Management | http://localhost:15672 | Interface RabbitMQ (guest/guest) |
-| Swagger Pedidos | http://localhost:8081/swagger-ui.html | Documentação API |
-| Swagger Produtos | http://localhost:8080/swagger-ui.html | Documentação API |
-| Actuator Health | http://localhost:8081/actuator/health | Health check |
-
-### Executar Localmente (Desenvolvimento)
+### 2. Executar Localmente em Modo Desenvolvimento
 
 ```bash
-# Suba apenas as dependências (PostgreSQL + RabbitMQ + Produtos)
+# Suba apenas os serviços de apoio
 docker-compose up -d postgres rabbitmq microservice-produtos
 
-# Execute a aplicação
+# Execute o microserviço de pedidos
 mvn spring-boot:run
-
-# Ou compile e execute o JAR
-mvn clean package -DskipTests
-java -jar target/microservice-pedidos-1.0.0.jar
 ```
+
+Acesse:
+- **Swagger UI**: [http://localhost:8081/swagger-ui.html](http://localhost:8081/swagger-ui.html)
+- **OpenAPI JSON**: [http://localhost:8081/api-docs](http://localhost:8081/api-docs)
+- **RabbitMQ Management**: [http://localhost:15672](http://localhost:15672) (usuário: `guest` / senha: `guest`)
+
+---
 
 ## 📡 Endpoints da API
 
 ### Criar Pedido
 ```http
-POST http://localhost:8081/api/pedidos
+POST /api/pedidos
 Content-Type: application/json
 
 {
@@ -469,95 +266,81 @@ Content-Type: application/json
   ]
 }
 ```
+**Resposta (201 Created)**:
+```json
+{
+  "id": 1,
+  "numeroPedido": "PED-A1B2C3D4",
+  "clienteId": 1,
+  "status": "PENDENTE",
+  "valorTotal": 5050.00,
+  "itens": [
+    {
+      "id": 1,
+      "produtoId": 1,
+      "nomeProduto": "Notebook",
+      "quantidade": 2,
+      "precoUnitario": 2500.00,
+      "subtotal": 5000.00
+    }
+  ],
+  "dataCriacao": "2026-10-11T14:30:00"
+}
+```
 
 ### Buscar Pedido por ID
 ```http
-GET http://localhost:8081/api/pedidos/{id}
+GET /api/pedidos/{id}
 ```
 
-### Listar Todos os Pedidos
+### Listar Pedidos (com Paginação Opcional)
 ```http
-GET http://localhost:8081/api/pedidos
+# Lista todos (retrocompatível)
+GET /api/pedidos
+
+# Lista com paginação
+GET /api/pedidos?pagina=0&tamanho=10
 ```
 
 ### Listar Pedidos por Cliente
 ```http
-GET http://localhost:8081/api/pedidos/cliente/{clienteId}
+GET /api/pedidos/cliente/{clienteId}
 ```
 
 ### Cancelar Pedido
 ```http
-PUT http://localhost:8081/api/pedidos/{id}/cancelar
+PUT /api/pedidos/{id}/cancelar
 ```
 
-### Health Check
-```http
-GET http://localhost:8081/actuator/health
-```
+---
+
+## 📈 Monitoramento & Actuator
+
+Para conformidade com as melhores práticas de segurança de produção, os endpoints do Spring Boot Actuator foram restritos, expondo apenas métricas essenciais sem vazamento de dados sensíveis do ambiente:
+
+| Endpoint | Descrição | Status |
+|----------|-----------|:------:|
+| `/actuator/health` | Status de saúde da aplicação e de dependências | Exposto (`200 OK`) |
+| `/actuator/info` | Informações da aplicação, Java, Git e Build | Exposto |
+| `/actuator/metrics` | Métricas de JVM, garbage collection, threads e HTTP | Exposto |
+| `/actuator/prometheus` | Coleta de métricas formatadas para Prometheus | Exposto |
+| `/actuator/env` | Variáveis de ambiente e segredos de sistema | **Bloqueado (404)** |
+| `/actuator/heapdump` | Dump de memória da JVM | **Bloqueado (404)** |
+| `/actuator/threaddump`| Dump de threads do sistema operacional | **Bloqueado (404)** |
+
+---
 
 ## ⚖️ Trade-offs e Decisões Arquiteturais
 
-### ✅ Virtual Threads vs WebFlux
-
-**Decisão:** Virtual Threads (Java 21) em vez de WebFlux reativo.
-
-**Prós:**
-- Código síncrono/imperativo (mais simples de entender)
-- Compatível com todo ecossistema existente (JPA, RestTemplate, etc.)
-- Debug mais fácil (stack traces legíveis)
-- Alta escalabilidade (milhares de threads virtuais)
-
-**Contras:**
-- Requer Java 21+
-- Blocos `synchronized` podem causar "pinning"
+| Decisão | Alternativa Avaliada | Motivação & Benefício |
+|---|---|---|
+| **Virtual Threads (Java 21)** | Spring WebFlux / Reativo | Mantém simplicidade de código imperativo/síncrono e rastreabilidade total de stack traces, atingindo escalabilidade comparável sem introduzir o overhead cognitivo do ecossistema reativo. |
+| **I/O Fora de Transação** | `@Transactional` cobrindo o Use Case | Evita exaustão do pool Hikari durante chamadas HTTP lentas ao serviço externo de produtos. A transação dura milissegundos, restrita ao salvamento de `Pedido` + `OutboxEvent`. |
+| **Outbox com `SKIP LOCKED`** | Consumo por lock otimista / sem lock | Permite escalabilidade horizontal com múltiplos pods/instâncias concorrentes sem colisão ou duplicação de eventos publicados no RabbitMQ. |
+| **Flyway + Hibernate Validate** | `ddl-auto=update` | Garante que alterações estruturais no banco sejam rastreáveis por código, testadas e auditadas em esteiras de CI/CD, eliminando surpresas em produção. |
+| **Jackson 3 Nativo** | Jackson 2 Legado | Alinhamento com o Spring Boot 4 / Spring Framework 7, serialização moderna com suporte nativo a tipos `java.time.*` sem dependências obsoletas. |
 
 ---
-
-### ✅ Feign vs RestTemplate
-
-**Decisão:** Feign Client para comunicação entre microserviços.
-
-**Prós:**
-- Código declarativo (interface + anotações)
-- Integração nativa com Spring Cloud
-- Suporte a fallback integrado
-- Menos boilerplate
-
-**Contras:**
-- Dependência do Spring Cloud
-- Menos controle granular que RestTemplate
-
----
-
-### ✅ Padrão Outbox
-
-**Decisão:** Implementar Outbox Pattern para garantir consistência eventual.
-
-**Prós:**
-- Garante que eventos não sejam perdidos (transação ACID)
-- Resiliência: retry automático em falhas do RabbitMQ
-- Desacoplamento entre persistência e mensageria
-
-**Contras:**
-- Complexidade adicional (tabela + job scheduled)
-- Latência: eventos não são publicados imediatamente (10s)
-- Overhead de storage (tabela Outbox cresce)
-
-**Mitigação:** 
-- Job com intervalo curto (10s)
-- Limpeza periódica de eventos processados
-
----
-
-### ✅ Resilience4j
-
-**Decisão:** Usar Resilience4j para resiliência em vez de Hystrix (deprecated).
-
-**Prós:**
-- Ativo e mantido
-- Suporte a Java 21 e Spring Boot 3
-- Configuração via properties
-- Métricas integradas
 
 ## 📂 Estrutura do Projeto
 
@@ -566,134 +349,68 @@ src/
 ├── main/
 │   ├── java/com/ecommerce/pedidos/
 │   │   ├── MicroservicePedidosApplication.java
-│   │   ├── domain/
-│   │   │   ├── entity/
-│   │   │   │   ├── Pedido.java
-│   │   │   │   ├── ItemPedido.java
-│   │   │   │   ├── OutboxEvent.java
-│   │   │   │   ├── StatusPedido.java
-│   │   │   │   └── OutboxStatus.java
-│   │   │   ├── exception/
-│   │   │   │   ├── PedidoNotFoundException.java
-│   │   │   │   └── ProdutoIndisponivelException.java
-│   │   │   └── repository/
-│   │   │       ├── PedidoRepositoryPort.java
-│   │   │       └── OutboxRepositoryPort.java
-│   │   ├── application/
-│   │   │   ├── usecase/
-│   │   │   │   ├── CriarPedidoUseCase.java
-│   │   │   │   ├── BuscarPedidoPorIdUseCase.java
-│   │   │   │   ├── ListarPedidosUseCase.java
-│   │   │   │   └── CancelarPedidoUseCase.java
-│   │   │   ├── service/
-│   │   │   │   ├── ProdutoServicePort.java
-│   │   │   │   └── EventPublisherPort.java
-│   │   │   ├── dto/
-│   │   │   │   └── ItemPedidoRequest.java
-│   │   │   └── event/
-│   │   │       ├── PedidoCriadoEvent.java
-│   │   │       └── ItemPedidoEvent.java
-│   │   ├── infrastructure/
-│   │   │   ├── config/
-│   │   │   │   ├── BeanConfiguration.java
-│   │   │   │   ├── CacheConfig.java
-│   │   │   │   ├── RabbitMQConfig.java
-│   │   │   │   ├── RestClientConfig.java
-│   │   │   │   └── OpenApiConfig.java
-│   │   │   ├── persistence/
-│   │   │   │   ├── entity/
-│   │   │   │   ├── mapper/
-│   │   │   │   └── repository/
-│   │   │   ├── client/
-│   │   │   │   ├── ProdutoFeignClient.java
-│   │   │   │   ├── ProdutoFeignClientFallback.java
-│   │   │   │   ├── ProdutoServiceAdapter.java
-│   │   │   │   └── dto/
-│   │   │   └── messaging/
-│   │   │       ├── RabbitMQPublisher.java
-│   │   │       └── OutboxProcessor.java
-│   │   └── presentation/
-│   │       ├── controller/
-│   │       │   ├── PedidoController.java
-│   │       │   └── ResilienceHealthController.java
-│   │       ├── dto/
-│   │       ├── mapper/
-│   │       └── exception/
-│   │           └── GlobalExceptionHandler.java
+│   │   ├── domain/                              # Camada de Domínio Puro
+│   │   │   ├── entity/                          # Pedido, ItemPedido, OutboxEvent...
+│   │   │   ├── exception/                       # PedidoNotFoundException...
+│   │   │   └── repository/                      # PedidoRepositoryPort, OutboxRepositoryPort
+│   │   ├── application/                         # Camada de Casos de Uso e Portas
+│   │   │   ├── usecase/                         # CriarPedidoUseCase, ListarPedidosUseCase...
+│   │   │   ├── port/out/                        # SalvarPedidoTransacionalPort
+│   │   │   ├── service/                         # ProdutoServicePort, EventPublisherPort
+│   │   │   ├── dto/                             # ProdutoDTO, ItemPedidoRequest
+│   │   │   └── event/                           # PedidoCriadoEvent, ItemPedidoEvent
+│   │   ├── infrastructure/                      # Adaptadores Técnicos
+│   │   │   ├── persistence/                     # Repositories JPA, Entidades JPA, Adaptadores
+│   │   │   ├── client/                          # OpenFeign, Adaptadores, Fallbacks
+│   │   │   ├── messaging/                       # OutboxProcessor, RabbitMQPublisher
+│   │   │   └── config/                          # Configurações do Spring, Cache, AMQP, OpenAPI
+│   │   └── presentation/                        # Adaptadores de Entrada (Web)
+│   │       ├── controller/                      # PedidoController, ResilienceHealthController
+│   │       ├── dto/                             # DTOs de Request e Response da API
+│   │       ├── mapper/                          # PedidoDTOMapper
+│   │       └── exception/                       # GlobalExceptionHandler
 │   └── resources/
-│       └── application.properties
+│       ├── application.properties               # Configurações gerais
+│       └── db/migration/
+│           └── V1__init_schema.sql              # DDL inicial Flyway
 └── test/
-    └── java/com/ecommerce/pedidos/
+    ├── java/com/ecommerce/pedidos/
+    │   ├── api/                                 # ContratoJsonGoldenIT, PedidoApiIT
+    │   ├── messaging/                           # OutboxRabbitIT, OutboxConcorrenciaIT
+    │   ├── persistence/                         # PersistenciaIT
+    │   ├── resilience/                          # ProdutoResilienciaIT
+    │   ├── transaction/                         # TransacaoBoundaryIT
+    │   └── support/                             # ContainersConfig (Testcontainers PostgreSQL & RabbitMQ)
+    └── resources/
+        └── application-test.properties          # Perfil de testes
 ```
 
-## 🧪 Testes
+---
 
-### Executar Testes
+## 🧪 Testes Automatizados
+
+O projeto conta com uma pirâmide robusta de testes unitários e de integração real executados com **Testcontainers 2.0.5** e **WireMock**:
+
+### Executar a Suíte Completa
 
 ```bash
-# Executar todos os testes
-mvn test
+# Executa testes unitários e testes de integração com Testcontainers
+mvn clean verify
 
-# Executar testes com relatório de cobertura
-mvn clean test jacoco:report
-
-# Ver relatório de cobertura
-open target/site/jacoco/index.html
+# Executa e gera relatório JaCoCo
+mvn test jacoco:report
 ```
 
-### Teste de Carga (Virtual Threads)
+### Categorias de Testes:
+- **Testes Unitários**: Testes puros de domínio e orquestração de use cases sem subir contexto do Spring.
+- **Testes de Contrato Golden JSON (`ContratoJsonGoldenIT`)**: Protegem a API e o formato dos eventos publicados contra breaking changes de serialização Jackson.
+- **Testes de Concorrência (`OutboxConcorrenciaIT`)**: Validam o processamento concorrente do Outbox com `SELECT FOR UPDATE SKIP LOCKED` em múltiplas threads contra PostgreSQL real.
+- **Testes de Fronteira Transacional (`TransacaoBoundaryIT`)**: Garantem que chamadas HTTP remotas ocorram estritamente com zero transações de banco ativas.
+- **Testes de Resiliência (`ProdutoResilienciaIT`)**: Simulam cenários de falhas de rede, lentidão, timeouts e fallback com WireMock.
+- **Testes de API e Flyway (`PedidoApiIT`, `PersistenciaIT`)**: Testam o ciclo completo de ponta a ponta, paginação e validação do schema com Hibernate.
 
-```bash
-# Usando hey (instalar: go install github.com/rakyll/hey@latest)
-hey -n 1000 -c 200 http://localhost:8081/api/pedidos
-
-# Usando curl para criar pedido
-curl -X POST http://localhost:8081/api/pedidos \
-  -H "Content-Type: application/json" \
-  -d '{"clienteId": 1, "itens": [{"produtoId": 1, "quantidade": 2}]}'
-```
-
-## 🔐 Variáveis de Ambiente
-
-| Variável | Descrição | Padrão |
-|----------|-----------|--------|
-| `SERVER_PORT` | Porta da aplicação | 8081 |
-| `SPRING_DATASOURCE_URL` | URL do PostgreSQL | jdbc:postgresql://localhost:5432/pedidosdb |
-| `SPRING_RABBITMQ_HOST` | Host do RabbitMQ | localhost |
-| `PRODUTO_SERVICE_URL` | URL do microservice-produtos | http://localhost:8080/api/produtos |
-| `FALLBACK_SERVICE_URL` | URL do serviço de fallback | http://localhost:8083/api/produtos |
-| `OUTBOX_PROCESSOR_FIXED_DELAY` | Intervalo do job Outbox (ms) | 10000 |
-| `SPRING_THREADS_VIRTUAL_ENABLED` | Habilitar Virtual Threads | true |
-
-## 📈 Monitoramento
-
-### Actuator Endpoints
-
-| Endpoint | Descrição |
-|----------|-----------|
-| `/actuator/health` | Status da aplicação |
-| `/actuator/info` | Informações da aplicação |
-| `/actuator/metrics` | Métricas do sistema |
-| `/actuator/caches` | Status dos caches |
-| `/actuator/threaddump` | Dump de threads |
-
-### RabbitMQ Management
-- URL: http://localhost:15672
-- Usuário: guest
-- Senha: guest
-
-## 🤝 Contribuindo
-
-1. Clone o repositório
-2. Crie uma branch de feature: `git checkout -b feature/minha-feature`
-3. Commit suas mudanças: `git commit -m 'feat: adiciona nova feature'`
-4. Push para a branch: `git push origin feature/minha-feature`
-5. Abra um Pull Request para `develop`
-
-## 📝 Licença
-
-Este projeto está sob a licença Apache 2.0.
+---
 
 ## 👥 Autor
 
-Desenvolvido por [Flávio Henrique](https://github.com/flaviohenso)
+Desenvolvido e refatorado por **[Flávio Henrique](https://github.com/flaviohenso)**.

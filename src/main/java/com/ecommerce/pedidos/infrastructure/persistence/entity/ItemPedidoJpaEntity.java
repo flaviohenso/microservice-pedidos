@@ -77,15 +77,16 @@ public class ItemPedidoJpaEntity {
         this.precoUnitario = precoUnitario;
     }
 
+    @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        ItemPedidoJpaEntity other = (ItemPedidoJpaEntity) obj;
-        return Objects.equals(id, other.id) && Objects.equals(produtoId, other.produtoId) && Objects.equals(nomeProduto, other.nomeProduto) && Objects.equals(quantidade, other.quantidade) && Objects.equals(precoUnitario, other.precoUnitario) && Objects.equals(pedido, other.pedido);
+        if (!(obj instanceof ItemPedidoJpaEntity other)) return false;
+        return id != null && Objects.equals(id, other.id);
     }
 
+    @Override
     public int hashCode() {
-        return Objects.hash(id, produtoId, nomeProduto, quantidade, precoUnitario, pedido);
+        return getClass().hashCode();
     }
 }
 

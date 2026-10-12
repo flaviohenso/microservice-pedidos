@@ -46,6 +46,46 @@ public class GlobalExceptionHandler {
     }
     
     /**
+     * Trata exceção de acesso negado (proteção contra IDOR / BOLA)
+     */
+    @ExceptionHandler(com.ecommerce.pedidos.domain.exception.AcessoNegadoException.class)
+    public ResponseEntity<ErrorResponse> handleAcessoNegadoException(
+            com.ecommerce.pedidos.domain.exception.AcessoNegadoException ex, WebRequest request) {
+        
+        logger.warn("Tentativa de acesso não autorizado a recurso: {}", ex.getMessage());
+        
+        ErrorResponse error = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.FORBIDDEN.value(),
+                "Forbidden",
+                ex.getMessage(),
+                request.getDescription(false).replace("uri=", "")
+        );
+        
+        return new ResponseEntity<>(error, HttpStatus.FORBIDDEN);
+    }
+    
+    /**
+     * Trata exceção de recurso não encontrado (ex: rotas inexistentes)
+     */
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFoundException(
+            org.springframework.web.servlet.resource.NoResourceFoundException ex, WebRequest request) {
+        
+        logger.warn("Recurso não encontrado: {}", ex.getMessage());
+        
+        ErrorResponse error = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.NOT_FOUND.value(),
+                "Not Found",
+                ex.getMessage(),
+                request.getDescription(false).replace("uri=", "")
+        );
+        
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+
+    /**
      * Trata exceção de produto indisponível
      */
     @ExceptionHandler(ProdutoIndisponivelException.class)
@@ -56,13 +96,13 @@ public class GlobalExceptionHandler {
         
         ErrorResponse error = new ErrorResponse(
                 LocalDateTime.now(),
-                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                HttpStatus.UNPROCESSABLE_CONTENT.value(),
                 "Unprocessable Entity",
                 ex.getMessage(),
                 request.getDescription(false).replace("uri=", "")
         );
         
-        return new ResponseEntity<>(error, HttpStatus.UNPROCESSABLE_ENTITY);
+        return new ResponseEntity<>(error, HttpStatus.UNPROCESSABLE_CONTENT);
     }
     
     /**
