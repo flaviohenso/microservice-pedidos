@@ -29,8 +29,28 @@ class PedidoApiIT extends AbstractIntegrationTest {
 
     // ---------- helpers ----------
 
+    private org.springframework.http.HttpHeaders authHeaders(Long clienteId, String... roles) {
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        String token = (roles.length > 0)
+                ? jwtTestHelper.gerarToken(clienteId, roles)
+                : jwtTestHelper.gerarToken(clienteId, "USER");
+        headers.setBearerAuth(token);
+        headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+        return headers;
+    }
+
+    private org.springframework.http.HttpHeaders adminHeaders() {
+        return authHeaders(999L, "ADMIN");
+    }
+
     private ResponseEntity<JsonNode> post(Object body) {
-        return rest.postForEntity("/api/pedidos", body, JsonNode.class);
+        // Extrai clienteId se existir para autenticar como o próprio cliente
+        Long clienteId = 7L;
+        if (body instanceof Map<?, ?> map && map.get("clienteId") instanceof Number num) {
+            clienteId = num.longValue();
+        }
+        var entity = new org.springframework.http.HttpEntity<>(body, authHeaders(clienteId));
+        return rest.postForEntity("/api/pedidos", entity, JsonNode.class);
     }
 
     private Map<String, Object> pedidoRequest(Long clienteId, Object... produtoQtd) {
@@ -184,7 +204,8 @@ class PedidoApiIT extends AbstractIntegrationTest {
     void buscarPorId_retorna200ComPedidoCompleto() {
         long id = criarPedidoValido();
 
-        ResponseEntity<JsonNode> resp = rest.getForEntity("/api/pedidos/" + id, JsonNode.class);
+        var entity = new org.springframework.http.HttpEntity<>(null, authHeaders(7L));
+        ResponseEntity<JsonNode> resp = rest.exchange("/api/pedidos/" + id, HttpMethod.GET, entity, JsonNode.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(resp.getBody().get("id").asLong()).isEqualTo(id);
@@ -194,7 +215,8 @@ class PedidoApiIT extends AbstractIntegrationTest {
 
     @Test
     void buscarPorId_inexistente_retorna404ComCorpoPadronizado() {
-        ResponseEntity<JsonNode> resp = rest.getForEntity("/api/pedidos/999999", JsonNode.class);
+        var entity = new org.springframework.http.HttpEntity<>(null, authHeaders(7L));
+        ResponseEntity<JsonNode> resp = rest.exchange("/api/pedidos/999999", HttpMethod.GET, entity, JsonNode.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         JsonNode body = resp.getBody();
@@ -210,7 +232,8 @@ class PedidoApiIT extends AbstractIntegrationTest {
         criarPedidoValido();
         criarPedidoValido();
 
-        ResponseEntity<JsonNode> resp = rest.getForEntity("/api/pedidos", JsonNode.class);
+        var entity = new org.springframework.http.HttpEntity<>(null, adminHeaders());
+        ResponseEntity<JsonNode> resp = rest.exchange("/api/pedidos", HttpMethod.GET, entity, JsonNode.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(resp.getBody().isArray()).isTrue();
@@ -224,9 +247,9 @@ class PedidoApiIT extends AbstractIntegrationTest {
         post(pedidoRequest(1L, 1L, 1));
         post(pedidoRequest(2L, 1L, 1));
 
-        JsonNode cliente1 = rest.getForEntity("/api/pedidos/cliente/1", JsonNode.class).getBody();
-        JsonNode cliente2 = rest.getForEntity("/api/pedidos/cliente/2", JsonNode.class).getBody();
-        JsonNode cliente3 = rest.getForEntity("/api/pedidos/cliente/3", JsonNode.class).getBody();
+        JsonNode cliente1 = rest.exchange("/api/pedidos/cliente/1", HttpMethod.GET, new org.springframework.http.HttpEntity<>(null, authHeaders(1L)), JsonNode.class).getBody();
+        JsonNode cliente2 = rest.exchange("/api/pedidos/cliente/2", HttpMethod.GET, new org.springframework.http.HttpEntity<>(null, authHeaders(2L)), JsonNode.class).getBody();
+        JsonNode cliente3 = rest.exchange("/api/pedidos/cliente/3", HttpMethod.GET, new org.springframework.http.HttpEntity<>(null, authHeaders(3L)), JsonNode.class).getBody();
 
         assertThat(cliente1).hasSize(2);
         assertThat(cliente2).hasSize(1);
@@ -239,8 +262,9 @@ class PedidoApiIT extends AbstractIntegrationTest {
     void cancelar_retorna200ComStatusCanceladoERegistraEventoOutbox() {
         long id = criarPedidoValido();
 
+        var entity = new org.springframework.http.HttpEntity<>(null, authHeaders(7L));
         ResponseEntity<JsonNode> resp = rest.exchange(
-                "/api/pedidos/" + id + "/cancelar", HttpMethod.PUT, null, JsonNode.class);
+                "/api/pedidos/" + id + "/cancelar", HttpMethod.PUT, entity, JsonNode.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(resp.getBody().get("status").asString()).isEqualTo("CANCELADO");
@@ -249,17 +273,18 @@ class PedidoApiIT extends AbstractIntegrationTest {
                 .containsExactlyInAnyOrder("PEDIDO_CRIADO", "PEDIDO_CANCELADO");
 
         // persistido
-        JsonNode buscado = rest.getForEntity("/api/pedidos/" + id, JsonNode.class).getBody();
+        JsonNode buscado = rest.exchange("/api/pedidos/" + id, HttpMethod.GET, entity, JsonNode.class).getBody();
         assertThat(buscado.get("status").asString()).isEqualTo("CANCELADO");
     }
 
     @Test
     void cancelar_jaCancelado_retorna400() {
         long id = criarPedidoValido();
-        rest.exchange("/api/pedidos/" + id + "/cancelar", HttpMethod.PUT, null, JsonNode.class);
+        var entity = new org.springframework.http.HttpEntity<>(null, authHeaders(7L));
+        rest.exchange("/api/pedidos/" + id + "/cancelar", HttpMethod.PUT, entity, JsonNode.class);
 
         ResponseEntity<JsonNode> resp = rest.exchange(
-                "/api/pedidos/" + id + "/cancelar", HttpMethod.PUT, null, JsonNode.class);
+                "/api/pedidos/" + id + "/cancelar", HttpMethod.PUT, entity, JsonNode.class);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(resp.getBody().get("message").asString()).contains("já está cancelado");
@@ -271,15 +296,34 @@ class PedidoApiIT extends AbstractIntegrationTest {
         criarPedidoValido();
         criarPedidoValido();
 
-        ResponseEntity<JsonNode> pag0 = rest.getForEntity("/api/pedidos?pagina=0&tamanho=2", JsonNode.class);
+        var entity = new org.springframework.http.HttpEntity<>(null, adminHeaders());
+        ResponseEntity<JsonNode> pag0 = rest.exchange("/api/pedidos?pagina=0&tamanho=2", HttpMethod.GET, entity, JsonNode.class);
         assertThat(pag0.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(pag0.getBody().isArray()).isTrue();
         assertThat(pag0.getBody()).hasSize(2);
 
-        ResponseEntity<JsonNode> pag1 = rest.getForEntity("/api/pedidos?pagina=1&tamanho=2", JsonNode.class);
+        ResponseEntity<JsonNode> pag1 = rest.exchange("/api/pedidos?pagina=1&tamanho=2", HttpMethod.GET, entity, JsonNode.class);
         assertThat(pag1.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(pag1.getBody().isArray()).isTrue();
         assertThat(pag1.getBody()).hasSize(1);
+    }
+
+    @Test
+    void endpointSemToken_retorna401Unauthorized() {
+        ResponseEntity<String> resp = rest.getForEntity("/api/pedidos", String.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void idor_tentativaAcessarPedidoDeOutroCliente_retorna403Forbidden() {
+        long id = criarPedidoValido(); // cliente 7L
+
+        // Cliente 88L tentando acessar pedido do cliente 7L
+        var entity = new org.springframework.http.HttpEntity<>(null, authHeaders(88L));
+        ResponseEntity<JsonNode> resp = rest.exchange("/api/pedidos/" + id, HttpMethod.GET, entity, JsonNode.class);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(resp.getBody().get("message").asString()).contains("não tem permissão");
     }
 
     @Test
@@ -288,9 +332,9 @@ class PedidoApiIT extends AbstractIntegrationTest {
         assertThat(health.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         ResponseEntity<String> env = rest.getForEntity("/actuator/env", String.class);
-        assertThat(env.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(env.getStatusCode().value()).isIn(HttpStatus.NOT_FOUND.value(), HttpStatus.UNAUTHORIZED.value());
 
         ResponseEntity<String> heapdump = rest.getForEntity("/actuator/heapdump", String.class);
-        assertThat(heapdump.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(heapdump.getStatusCode().value()).isIn(HttpStatus.NOT_FOUND.value(), HttpStatus.UNAUTHORIZED.value());
     }
 }

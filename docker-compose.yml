@@ -6,9 +6,9 @@ services:
     image: postgres:15-alpine
     container_name: postgres-pedidos
     environment:
-      POSTGRES_DB: pedidosdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-pedidosdb}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
@@ -26,8 +26,8 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
     ports:
       - "5672:5672"   # Porta AMQP
       - "15672:15672" # Porta do Management UI
@@ -44,7 +44,7 @@ services:
   # Microserviço de Produtos (H2 em memória)
   microservice-produtos:
     build:
-      context: /home/flavio/Projetos/microservice-produtos
+      context: ../microservice-produtos
       dockerfile: Dockerfile
     container_name: microservice-produtos
     ports:
@@ -74,16 +74,16 @@ services:
       - JAVA_OPTS=-Xmx512m -Xms256m
       - SPRING_PROFILES_ACTIVE=default
       # Configurações de banco de dados
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/pedidosdb
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATASOURCE_URL=${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/pedidosdb}
+      - SPRING_DATASOURCE_USERNAME=${SPRING_DATASOURCE_USERNAME:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:-postgres}
       # Configurações de RabbitMQ
-      - SPRING_RABBITMQ_HOST=rabbitmq
-      - SPRING_RABBITMQ_PORT=5672
-      - SPRING_RABBITMQ_USERNAME=guest
-      - SPRING_RABBITMQ_PASSWORD=guest
+      - SPRING_RABBITMQ_HOST=${SPRING_RABBITMQ_HOST:-rabbitmq}
+      - SPRING_RABBITMQ_PORT=${SPRING_RABBITMQ_PORT:-5672}
+      - SPRING_RABBITMQ_USERNAME=${SPRING_RABBITMQ_USERNAME:-guest}
+      - SPRING_RABBITMQ_PASSWORD=${SPRING_RABBITMQ_PASSWORD:-guest}
       # Configurações de integração com microserviço de produtos
-      - PRODUTO_SERVICE_URL=http://microservice-produtos:8080/api/produtos
+      - PRODUTO_SERVICE_URL=${PRODUTO_SERVICE_URL:-http://microservice-produtos:8080/api/produtos}
     depends_on:
       postgres:
         condition: service_healthy

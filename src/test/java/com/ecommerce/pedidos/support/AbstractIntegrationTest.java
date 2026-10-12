@@ -23,7 +23,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
-@Import(ContainersConfig.class)
+@Import({ContainersConfig.class, JwtTestHelper.class})
 @ActiveProfiles("test")
 public abstract class AbstractIntegrationTest {
 
@@ -48,6 +48,9 @@ public abstract class AbstractIntegrationTest {
 
     @Autowired
     protected CacheManager cacheManager;
+
+    @Autowired
+    protected JwtTestHelper jwtTestHelper;
 
     @BeforeEach
     void limparEstado() {
